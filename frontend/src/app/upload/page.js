@@ -25,6 +25,7 @@ export default function UploadPage() {
         password: '',
         captcha: ''
     });
+    const [showErpPassword, setShowErpPassword] = useState(false);
 
     // Timetable Search Params
     const [timetableOptions, setTimetableOptions] = useState({ academic_years: [], semesters: [] });
@@ -332,13 +333,36 @@ export default function UploadPage() {
 
                                 <div className="input-group">
                                     <label className="input-label">Password</label>
-                                    <input
-                                        type="password"
-                                        className="input-field"
-                                        value={erpCreds.password}
-                                        onChange={e => setErpCreds({ ...erpCreds, password: e.target.value })}
-                                        required
-                                    />
+                                    <div style={{ position: 'relative' }}>
+                                        <input
+                                            type={showErpPassword ? 'text' : 'password'}
+                                            className="input-field"
+                                            style={{ paddingRight: '4rem' }}
+                                            value={erpCreds.password}
+                                            onChange={e => setErpCreds({ ...erpCreds, password: e.target.value })}
+                                            required
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowErpPassword(!showErpPassword)}
+                                            className="font-mono"
+                                            style={{
+                                                position: 'absolute',
+                                                right: '0.5rem',
+                                                top: '50%',
+                                                transform: 'translateY(-50%)',
+                                                background: 'none',
+                                                border: 'none',
+                                                color: 'var(--text-muted)',
+                                                fontSize: '0.7rem',
+                                                cursor: 'pointer',
+                                                textTransform: 'uppercase',
+                                                padding: '0.25rem 0.5rem',
+                                            }}
+                                        >
+                                            {showErpPassword ? 'HIDE' : 'SHOW'}
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="input-group">

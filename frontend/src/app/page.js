@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import Link from 'next/link';
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -32,14 +33,19 @@ const segHeight = (seg) => {
 
 export default function HomePage() {
   const [schedule, setSchedule] = useState([]);
+  const [meetings, setMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
     const fetchSchedule = async () => {
       try {
-        const data = await api.getMySchedule();
-        setSchedule(data.entries);
+        const [schedData, meetData] = await Promise.all([
+          api.getMySchedule(),
+          api.getDashboardMeetings().catch(() => ({ meetings: [] }))
+        ]);
+        setSchedule(schedData.entries || []);
+        setMeetings(meetData.meetings || []);
       } catch (err) {
         console.error("Failed to load schedule", err);
       } finally {
@@ -105,6 +111,36 @@ export default function HomePage() {
           RE-IMPORT
         </button>
       </div>
+
+      {/* Upcoming Meetings UI */}
+      {!loading && meetings.length > 0 && (
+        <div style={{ marginBottom: '2rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3 className="font-serif" style={{ margin: 0, fontSize: '1.25rem' }}>Upcoming Meetings.</h3>
+            <button className="btn btn-outline font-mono" style={{ fontSize: '0.7rem', padding: '0.5rem 1rem' }} onClick={() => router.push('/groups')}>
+              SCHEDULE NEW
+            </button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+            {meetings.map(m => (
+              <Link href={`/groups/${m.group_id}`} key={m.id} style={{ textDecoration: 'none' }}>
+                <div className="card-invert" style={{ padding: '1.2rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                    <strong className="font-serif" style={{ fontSize: '1.1rem' }}>{m.title}</strong>
+                    <span className="font-mono text-muted" style={{ fontSize: '0.7rem' }}>{DAYS[m.day_of_week].slice(0, 3).toUpperCase()}</span>
+                  </div>
+                  <div className="font-mono text-secondary" style={{ fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+                    {m.start_time} - {m.end_time}
+                  </div>
+                  <div className="font-mono text-muted" style={{ fontSize: '0.7rem', borderTop: '1px dashed var(--border-color)', paddingTop: '0.5rem' }}>
+                    Group: <span style={{ color: 'var(--text-primary)' }}>{m.group_name}</span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Main content */}
       <div style={{ flex: 1, overflow: 'auto', paddingBottom: '1rem' }}>

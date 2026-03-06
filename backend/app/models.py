@@ -19,6 +19,8 @@ class User(Base):
     created_groups = relationship("Group", back_populates="creator", cascade="all, delete-orphan")
     memberships = relationship("GroupMember", back_populates="user", cascade="all, delete-orphan")
     created_slots = relationship("ScheduledSlot", back_populates="creator", cascade="all, delete-orphan")
+    meetings_created = relationship("Meeting", back_populates="creator", cascade="all, delete-orphan")
+    meeting_participations = relationship("MeetingParticipant", back_populates="user", cascade="all, delete-orphan")
 
 
 class Schedule(Base):
@@ -50,6 +52,7 @@ class Group(Base):
     creator = relationship("User", back_populates="created_groups")
     members = relationship("GroupMember", back_populates="group", cascade="all, delete-orphan")
     scheduled_slots = relationship("ScheduledSlot", back_populates="group", cascade="all, delete-orphan")
+    meetings = relationship("Meeting", back_populates="group", cascade="all, delete-orphan")
 
 
 class GroupMember(Base):
@@ -79,3 +82,34 @@ class ScheduledSlot(Base):
 
     group = relationship("Group", back_populates="scheduled_slots")
     creator = relationship("User", back_populates="created_slots")
+
+
+class Meeting(Base):
+    __tablename__ = "meetings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    group_id = Column(Integer, ForeignKey("groups.id"), nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    title = Column(String(256), nullable=False)
+    description = Column(Text, nullable=True)
+    day_of_week = Column(Integer, nullable=False)     # 0=Monday ... 6=Sunday
+    start_time = Column(String(5), nullable=False)     # "14:00"
+    end_time = Column(String(5), nullable=False)       # "15:30"
+    include_break = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    group = relationship("Group", back_populates="meetings")
+    creator = relationship("User", back_populates="meetings_created")
+    participants = relationship("MeetingParticipant", back_populates="meeting", cascade="all, delete-orphan")
+
+
+class MeetingParticipant(Base):
+    __tablename__ = "meeting_participants"
+
+    id = Column(Integer, primary_key=True, index=True)
+    meeting_id = Column(Integer, ForeignKey("meetings.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(String(20), default="confirmed")   # confirmed | declined
+
+    meeting = relationship("Meeting", back_populates="participants")
+    user = relationship("User", back_populates="meeting_participations")

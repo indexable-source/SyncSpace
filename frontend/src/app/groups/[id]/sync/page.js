@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 
@@ -8,7 +8,7 @@ const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
 const HOURS = Array.from({ length: 11 }, (_, i) => i + 8); // 8 AM to 6 PM
 
 export default function GroupSyncPage({ params }) {
-    const { id } = params;
+    const { id } = use(params);
     const router = useRouter();
 
     const [syncData, setSyncData] = useState(null);
@@ -143,7 +143,7 @@ export default function GroupSyncPage({ params }) {
                     </button>
                     <h1 className="font-serif" style={{ margin: 0, lineHeight: 1 }}>Sync & Schedule.</h1>
                     <p className="font-mono text-muted" style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>
-                        Found {syncData.common_free_slots.length} available slots across {syncData.users_analyzed} members.
+                        Found {(syncData.free_slots || []).length} available slots across {(syncData.members || []).length} members.
                     </p>
                 </div>
             </div>
@@ -227,7 +227,7 @@ export default function GroupSyncPage({ params }) {
                             ))}
 
                             {/* Free Slots */}
-                            {syncData.common_free_slots.map((slot, idx) => (
+                            {(syncData.free_slots || []).map((slot, idx) => (
                                 <div
                                     key={idx}
                                     style={getGridStyle(slot)}

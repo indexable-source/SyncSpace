@@ -78,11 +78,13 @@ def create_app() -> FastAPI:
     from app.erp.routes import router as erp_router
     from app.schedules.routes import router as schedule_router
     from app.groups.routes import router as group_router
+    from app.meetings.routes import router as meetings_router
 
     app.include_router(auth_router)
     app.include_router(erp_router)
     app.include_router(schedule_router)
     app.include_router(group_router)
+    app.include_router(meetings_router)
 
     @app.get("/health")
     def health():

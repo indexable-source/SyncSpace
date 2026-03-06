@@ -278,7 +278,7 @@ export default function SettingsPage() {
                                             <span className="text-muted">ROLL NO:</span> <strong style={{ color: 'var(--text-primary)' }}>{user.erp_roll_number}</strong>
                                         </div>
                                         <div className="font-mono" style={{ fontSize: '0.75rem' }}>
-                                            <span className="text-muted">STATUS:</span> <span style={{ color: 'var(--color-subj-4)' }}>● LINKED</span>
+                                            <span className="text-muted">STATUS:</span> <span style={{ color: 'var(--accent-success)' }}>● LINKED</span>
                                         </div>
                                     </div>
                                 ) : (

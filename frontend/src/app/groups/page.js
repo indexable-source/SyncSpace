@@ -4,9 +4,11 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useToast } from '@/context/ToastContext';
+import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
 
 export default function GroupsPage() {
+    const { user } = useAuth();
     const [groups, setGroups] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -189,58 +191,74 @@ export default function GroupsPage() {
                 </div>
             ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem', alignItems: 'stretch' }}>
-                    {groups.map(group => (
-                        <Link href={`/groups/[id]`} as={`/groups/${group.id}`} key={group.id} style={{ textDecoration: 'none' }}>
-                            <div
-                                className="card-invert"
-                                style={{
-                                    height: '100%',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    border: 'var(--border-width) solid var(--border-color)',
-                                    borderRadius: 'var(--radius-sm)',
-                                    background: 'var(--bg-elevated)',
-                                    transition: 'all 0.2s',
-                                    padding: '1.5rem'
-                                }}
-                            >
-                                <h3 className="font-mono" style={{ margin: '0 0 0.5rem 0', textTransform: 'uppercase', fontSize: '1.1rem' }}>
-                                    {group.name}
-                                </h3>
+                    {groups.map(group => {
+                        const creator = group.members.find(m => m.id === group.created_by);
+                        const creatorName = creator ? (creator.id === user?.id ? 'you' : creator.username) : 'unknown';
 
-                                <p className="font-mono text-muted" style={{ fontSize: '0.8rem', marginBottom: '2rem', flex: 1, lineHeight: 1.5 }}>
-                                    {group.description || 'No description provided.'}
-                                </p>
+                        return (
+                            <Link href={`/groups/${group.id}`} key={group.id} style={{ textDecoration: 'none' }}>
+                                <div
+                                    className="card-invert"
+                                    style={{
+                                        height: '100%',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        border: 'var(--border-width) solid var(--border-color)',
+                                        borderRadius: 'var(--radius-sm)',
+                                        background: 'var(--bg-elevated)',
+                                        transition: 'all 0.2s',
+                                        padding: '1.5rem',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                                        <h3 className="font-mono" style={{ margin: 0, textTransform: 'uppercase', fontSize: '1.1rem' }}>
+                                            {group.name}
+                                        </h3>
+                                        <span className="font-mono text-muted" style={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                                            {group.member_count} {group.member_count === 1 ? 'MEMBER' : 'MEMBERS'}
+                                        </span>
+                                    </div>
 
-                                <div style={{
-                                    marginTop: 'auto',
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    borderTop: 'var(--border-width) solid var(--border-color)',
-                                    paddingTop: '1rem',
-                                    paddingBottom: '0'
-                                }}>
-                                    <span
-                                        style={{
-                                            fontFamily: 'var(--font-jetbrains-mono), monospace',
-                                            fontSize: '0.75rem',
-                                            cursor: 'pointer',
-                                            borderBottom: 'var(--border-width) dashed currentColor',
-                                            paddingBottom: '0.1rem'
-                                        }}
-                                        onClick={(e) => { e.preventDefault(); copyInviteCode(group.invite_code); }}
-                                        title="Click to copy"
-                                    >
-                                        CODE: {group.invite_code}
-                                    </span>
-                                    <span className="font-mono" style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>
-                                        VIEW DETAILS →
-                                    </span>
+                                    <p className="font-mono text-muted" style={{ fontSize: '0.8rem', marginBottom: '1.5rem', flex: 1, lineHeight: 1.5 }}>
+                                        {group.description || 'No description provided.'}
+                                    </p>
+
+                                    <div style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        fontSize: '0.75rem',
+                                        fontFamily: 'var(--font-jetbrains-mono), monospace',
+                                        marginBottom: '1rem',
+                                        color: 'var(--text-secondary)'
+                                    }}>
+                                        <span>
+                                            CREATED BY: <strong style={{ color: 'var(--text-primary)' }}>@{creatorName}</strong>
+                                        </span>
+                                        <span
+                                            style={{ cursor: 'pointer', borderBottom: 'var(--border-width) dashed currentColor' }}
+                                            onClick={(e) => { e.preventDefault(); copyInviteCode(group.invite_code); }}
+                                            title="Click to copy"
+                                        >
+                                            CODE: {group.invite_code}
+                                        </span>
+                                    </div>
+
+                                    <div style={{
+                                        marginTop: 'auto',
+                                        borderTop: 'var(--border-width) solid var(--border-color)',
+                                        paddingTop: '1rem',
+                                        textAlign: 'right'
+                                    }}>
+                                        <span className="font-mono" style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>
+                                            VIEW GROUP →
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
-                        </Link>
-                    ))}
+                            </Link>
+                        );
+                    })}
                 </div>
             )}
         </div>

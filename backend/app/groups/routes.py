@@ -26,6 +26,15 @@ class JoinGroupRequest(BaseModel):
     invite_code: str
 
 
+class AddMemberRequest(BaseModel):
+    username: str
+
+
+class UpdateGroupRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
 class ScheduleSlotRequest(BaseModel):
     title: str
     description: Optional[str] = None
@@ -301,3 +310,152 @@ def delete_slot(
     db.delete(slot)
     db.commit()
     return {"success": True, "message": "Slot deleted"}
+
+
+@router.post("/{group_id}/add-member")
+def add_member(
+    group_id: int,
+    req: AddMemberRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Creator adds member by username."""
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    if group.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the group creator can add members")
+
+    target_user = db.query(User).filter(User.username.ilike(req.username.strip())).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail=f"User '{req.username}' not found on SyncSpace")
+
+    existing = db.query(GroupMember).filter(
+        GroupMember.group_id == group_id,
+        GroupMember.user_id == target_user.id,
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="User is already a member")
+
+    member = GroupMember(group_id=group.id, user_id=target_user.id)
+    db.add(member)
+    db.commit()
+
+    return {"success": True, "group": _group_dict(group, db)}
+
+
+@router.delete("/{group_id}/members/{user_id}")
+def remove_member(
+    group_id: int,
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Creator removes a member."""
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    if group.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the group creator can remove members")
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot remove yourself — use leave instead")
+
+    member = db.query(GroupMember).filter(
+        GroupMember.group_id == group_id,
+        GroupMember.user_id == user_id,
+    ).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found in this group")
+    
+    db.delete(member)
+    db.commit()
+
+    return {"success": True, "group": _group_dict(group, db)}
+
+
+@router.post("/{group_id}/leave")
+def leave_group(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Any member leaves group."""
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    member = db.query(GroupMember).filter(
+        GroupMember.group_id == group_id,
+        GroupMember.user_id == current_user.id,
+    ).first()
+    if not member:
+        raise HTTPException(status_code=403, detail="Not a member of this group")
+
+    # If caller is creator
+    if group.created_by == current_user.id:
+        other_members = db.query(GroupMember).filter(
+            GroupMember.group_id == group_id,
+            GroupMember.user_id != current_user.id
+        ).order_by(GroupMember.joined_at).all()
+
+        if other_members:
+            # Transfer ownership to the longest-standing member
+            group.created_by = other_members[0].user_id
+            db.delete(member)
+            db.commit()
+            return {"success": True, "message": "Left group. Ownership transferred."}
+        else:
+            # Delete group entirely
+            db.delete(group)
+            db.commit()
+            return {"success": True, "message": "Left group. Group deleted."}
+    else:
+        db.delete(member)
+        db.commit()
+        return {"success": True, "message": "Left group"}
+
+
+@router.delete("/{group_id}")
+def delete_group(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Creator deletes group entirely."""
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    if group.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the group creator can delete the group")
+    
+    db.delete(group) # Cascade handles members, slots, meetings
+    db.commit()
+    return {"success": True, "message": "Group deleted"}
+
+
+@router.put("/{group_id}")
+def update_group(
+    group_id: int,
+    req: UpdateGroupRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Creator updates name/description."""
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    if group.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the group creator can update the group")
+    
+    if req.name is not None:
+        if len(req.name.strip()) < 1 or len(req.name.strip()) > 128:
+            raise HTTPException(status_code=400, detail="Group name must be 1-128 characters")
+        group.name = req.name.strip()
+    
+    if req.description is not None:
+        if len(req.description) > 500:
+            raise HTTPException(status_code=400, detail="Description must be 500 characters or less")
+        group.description = req.description.strip()
+    
+    db.commit()
+    return {"success": True, "group": _group_dict(group, db)}

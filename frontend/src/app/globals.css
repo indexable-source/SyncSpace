@@ -309,7 +309,7 @@ h3 {
 }
 
 .btn-primary:hover {
-  background-color: #ffffff;
+  background-color: var(--bg-elevated);
   color: var(--accent-primary);
   border-color: var(--accent-primary);
 }

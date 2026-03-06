@@ -291,5 +291,75 @@ export const api = {
 
   async getSlots(groupId) {
     return this.request(`/groups/${groupId}/slots`);
+  },
+
+  async addMember(groupId, username) {
+    return this.request(`/groups/${groupId}/add-member`, {
+      method: 'POST',
+      body: JSON.stringify({ username })
+    });
+  },
+
+  async removeMember(groupId, userId) {
+    return this.request(`/groups/${groupId}/members/${userId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async leaveGroup(groupId) {
+    return this.request(`/groups/${groupId}/leave`, {
+      method: 'POST'
+    });
+  },
+
+  async deleteGroup(groupId) {
+    return this.request(`/groups/${groupId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async updateGroup(groupId, name, description) {
+    return this.request(`/groups/${groupId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name, description })
+    });
+  },
+
+  // --- Meeting Scheduler Endpoints ---
+
+  async findAvailableSlots(groupId, memberIds, includeBreak) {
+    return this.request(`/groups/${groupId}/find-slots`, {
+      method: 'POST',
+      body: JSON.stringify({ member_ids: memberIds, include_break: includeBreak })
+    });
+  },
+
+  async createMeeting(groupId, title, description, dayOfWeek, startTime, endTime, participantIds, includeBreak) {
+    return this.request(`/groups/${groupId}/meetings`, {
+      method: 'POST',
+      body: JSON.stringify({
+        title,
+        description,
+        day_of_week: dayOfWeek,
+        start_time: startTime,
+        end_time: endTime,
+        participant_ids: participantIds,
+        include_break: includeBreak
+      })
+    });
+  },
+
+  async getGroupMeetings(groupId) {
+    return this.request(`/groups/${groupId}/meetings`);
+  },
+
+  async deleteMeeting(groupId, meetingId) {
+    return this.request(`/groups/${groupId}/meetings/${meetingId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async getDashboardMeetings() {
+    return this.request('/dashboard/meetings');
   }
 };
