@@ -65,6 +65,10 @@ def create_group(
     db: Session = Depends(get_db),
 ):
     """Create a new group with a unique invite code."""
+    if not req.name or len(req.name.strip()) < 1 or len(req.name.strip()) > 128:
+        raise HTTPException(status_code=400, detail="Group name must be 1-128 characters")
+    if req.description and len(req.description) > 500:
+        raise HTTPException(status_code=400, detail="Description must be 500 characters or less")
     invite_code = secrets.token_hex(4).upper()  # 8-char hex code
 
     group = Group(

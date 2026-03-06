@@ -15,9 +15,9 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     schedules = relationship("Schedule", back_populates="user", cascade="all, delete-orphan")
-    created_groups = relationship("Group", back_populates="creator")
+    created_groups = relationship("Group", back_populates="creator", cascade="all, delete-orphan")
     memberships = relationship("GroupMember", back_populates="user", cascade="all, delete-orphan")
-    created_slots = relationship("ScheduledSlot", back_populates="creator")
+    created_slots = relationship("ScheduledSlot", back_populates="creator", cascade="all, delete-orphan")
 
 
 class Schedule(Base):

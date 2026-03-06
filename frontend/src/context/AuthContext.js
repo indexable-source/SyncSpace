@@ -47,9 +47,29 @@ export function AuthProvider({ children }) {
             }
         };
 
+        // Cross-tab session sync: if token is removed in another tab, log out here too
+        const handleStorageChange = (e) => {
+            if (e.key === 'token') {
+                if (!e.newValue) {
+                    // Token removed in another tab
+                    setUser(null);
+                    if (pathname !== '/login') {
+                        router.push('/login');
+                    }
+                } else if (!user) {
+                    // Token added in another tab (user logged in elsewhere)
+                    checkAuth();
+                }
+            }
+        };
+
         window.addEventListener('auth-expired', handleAuthExpired);
-        return () => window.removeEventListener('auth-expired', handleAuthExpired);
-    }, [router, pathname]);
+        window.addEventListener('storage', handleStorageChange);
+        return () => {
+            window.removeEventListener('auth-expired', handleAuthExpired);
+            window.removeEventListener('storage', handleStorageChange);
+        };
+    }, [router, pathname, user, checkAuth]);
 
     const login = async (username, password) => {
         const data = await api.login(username, password);

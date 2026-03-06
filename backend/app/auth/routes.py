@@ -45,6 +45,7 @@ def _user_dict(user: User) -> dict:
 
 @router.get("/check-username/{username}")
 def check_username(username: str, db: Session = Depends(get_db)):
+    username = username.lower()
     if err := validate_username(username):
         return {"available": False, "message": err}
     exists = db.query(User).filter(User.username == username).first() is not None
@@ -56,8 +57,9 @@ def check_username(username: str, db: Session = Depends(get_db)):
 @router.post("/register", response_model=AuthResponse)
 def register(req: RegisterRequest, db: Session = Depends(get_db)):
     req_email = req.email.strip() if req.email else None
+    req_username = req.username.strip().lower()
     
-    if err := validate_username(req.username):
+    if err := validate_username(req_username):
         raise HTTPException(status_code=400, detail=err)
     if err := validate_password(req.password):
         raise HTTPException(status_code=400, detail=err)
@@ -65,16 +67,20 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
         if err := validate_email(req_email):
             raise HTTPException(status_code=400, detail=err)
 
-    if db.query(User).filter(User.username == req.username).first():
+    if db.query(User).filter(User.username == req_username).first():
         raise HTTPException(status_code=400, detail="Username already taken")
     if req_email and db.query(User).filter(User.email == req_email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
+    
+    display_name = (req.display_name or req_username).strip()
+    if len(display_name) > 50:
+        raise HTTPException(status_code=400, detail="Display name must be 50 characters or less")
 
     user = User(
-        username=req.username,
+        username=req_username,
         email=req_email,
         password_hash=hash_password(req.password),
-        display_name=req.display_name or req.username,
+        display_name=display_name,
     )
     db.add(user)
     db.commit()
@@ -100,7 +106,7 @@ def login(request: Request, req: LoginRequest, db: Session = Depends(get_db)):
     else:
         LOGIN_ATTEMPTS[ip] = {"count": 1, "reset_at": now + 60}
 
-    user = db.query(User).filter(User.username == req.username).first()
+    user = db.query(User).filter(User.username == req.username.strip().lower()).first()
     if not user or not verify_password(req.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
@@ -128,9 +134,12 @@ def update_profile(
     db: Session = Depends(get_db),
 ):
     if req.display_name is not None:
-        if len(req.display_name.strip()) < 1:
+        name = req.display_name.strip()
+        if len(name) < 1:
             raise HTTPException(status_code=400, detail="Display name cannot be empty")
-        current_user.display_name = req.display_name.strip()
+        if len(name) > 50:
+            raise HTTPException(status_code=400, detail="Display name must be 50 characters or less")
+        current_user.display_name = name
 
     if req.email is not None:
         if req.email:
