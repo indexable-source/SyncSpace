@@ -1,0 +1,80 @@
+# ═══════════════════════════════════════════════════════════════
+# SyncSpace — Root .gitignore
+# Covers both frontend (Next.js) and backend (FastAPI/Python)
+# ═══════════════════════════════════════════════════════════════
+
+# ─── Python / Backend ───────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+*.egg
+dist/
+build/
+venv/
+.venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+coverage/
+
+# ─── Node / Frontend ───────────────────────────────────────
+node_modules/
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Next.js
+.next/
+out/
+.turbo/
+next-env.d.ts
+*.tsbuildinfo
+
+# Production build
+build/
+
+# ─── Environment & Secrets ─────────────────────────────────
+.env
+.env.*
+
+# ─── Database ──────────────────────────────────────────────
+*.db
+*.sqlite3
+
+# ─── Logs ──────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ─── IDE & OS ──────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.pem
+
+# ─── Vercel ────────────────────────────────────────────────
+.vercel
+
+# ─── Debug / Temp ──────────────────────────────────────────
+test_out.txt
+out.txt
+current_session.txt
+current_sid.txt
+session_id.txt
+
+# ─── Media (generated at runtime, not source) ─────────────
+# Uncomment if you don't want to track scraped images:
+# *.png
+# *.html
