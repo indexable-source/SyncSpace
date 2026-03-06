@@ -43,6 +43,15 @@ class ScheduleSlotRequest(BaseModel):
     end_time: str
 
 
+def get_group_by_identifier(identifier: str, db: Session) -> Group:
+    if identifier.isdigit():
+        group = db.query(Group).filter(Group.id == int(identifier)).first()
+        if group: return group
+    group = db.query(Group).filter(Group.invite_code == identifier.upper()).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    return group
+
 def _group_dict(group: Group, db: Session) -> dict:
     members = db.query(GroupMember).filter(GroupMember.group_id == group.id).all()
     member_list = []
@@ -138,19 +147,17 @@ def join_group(
     return {"success": True, "group": _group_dict(group, db)}
 
 
-@router.get("/{group_id}")
+@router.get("/{identifier}")
 def get_group(
-    group_id: int,
+    identifier: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Get group details with members."""
-    group = db.query(Group).filter(Group.id == group_id).first()
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found")
+    group = get_group_by_identifier(identifier, db)
 
     is_member = db.query(GroupMember).filter(
-        GroupMember.group_id == group_id,
+        GroupMember.group_id == group.id,
         GroupMember.user_id == current_user.id,
     ).first()
     if not is_member:
@@ -159,26 +166,28 @@ def get_group(
     return {"success": True, "group": _group_dict(group, db)}
 
 
-@router.get("/{group_id}/sync")
+@router.get("/{identifier}/sync")
 def sync_group_schedules(
-    group_id: int,
+    identifier: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Compute common free slots for all group members."""
-    group = db.query(Group).filter(Group.id == group_id).first()
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found")
+    my_schedule_count = db.query(Schedule).filter(Schedule.user_id == current_user.id).count()
+    if my_schedule_count == 0:
+        raise HTTPException(status_code=400, detail="You must import a timetable via the Dashboard first to sync schedules.")
+
+    group = get_group_by_identifier(identifier, db)
 
     is_member = db.query(GroupMember).filter(
-        GroupMember.group_id == group_id,
+        GroupMember.group_id == group.id,
         GroupMember.user_id == current_user.id,
     ).first()
     if not is_member:
         raise HTTPException(status_code=403, detail="Not a member of this group")
 
     # Gather all members' schedules
-    members = db.query(GroupMember).filter(GroupMember.group_id == group_id).all()
+    members = db.query(GroupMember).filter(GroupMember.group_id == group.id).all()
     user_schedules = {}
     members_info = []
 
@@ -211,23 +220,29 @@ def sync_group_schedules(
     }
 
 
-@router.post("/{group_id}/schedule-slot")
+@router.post("/{identifier}/schedule-slot")
 def schedule_slot(
-    group_id: int,
+    identifier: str,
     req: ScheduleSlotRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Schedule a collaborative slot in the group."""
+    my_schedule_count = db.query(Schedule).filter(Schedule.user_id == current_user.id).count()
+    if my_schedule_count == 0:
+        raise HTTPException(status_code=400, detail="You must import a timetable first to book a session.")
+
+    group = get_group_by_identifier(identifier, db)
+
     is_member = db.query(GroupMember).filter(
-        GroupMember.group_id == group_id,
+        GroupMember.group_id == group.id,
         GroupMember.user_id == current_user.id,
     ).first()
     if not is_member:
         raise HTTPException(status_code=403, detail="Not a member")
 
     slot = ScheduledSlot(
-        group_id=group_id,
+        group_id=group.id,
         created_by=current_user.id,
         title=req.title,
         description=req.description,
@@ -254,15 +269,17 @@ def schedule_slot(
     }
 
 
-@router.get("/{group_id}/slots")
+@router.get("/{identifier}/slots")
 def get_group_slots(
-    group_id: int,
+    identifier: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Get all scheduled collaborative slots for a group."""
+    group = get_group_by_identifier(identifier, db)
+    
     is_member = db.query(GroupMember).filter(
-        GroupMember.group_id == group_id,
+        GroupMember.group_id == group.id,
         GroupMember.user_id == current_user.id,
     ).first()
     if not is_member:
@@ -270,7 +287,7 @@ def get_group_slots(
 
     slots = (
         db.query(ScheduledSlot)
-        .filter(ScheduledSlot.group_id == group_id)
+        .filter(ScheduledSlot.group_id == group.id)
         .order_by(ScheduledSlot.day_of_week, ScheduledSlot.start_time)
         .all()
     )
@@ -292,17 +309,19 @@ def get_group_slots(
     return {"success": True, "slots": result}
 
 
-@router.delete("/{group_id}/slots/{slot_id}")
+@router.delete("/{identifier}/slots/{slot_id}")
 def delete_slot(
-    group_id: int,
+    identifier: str,
     slot_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Delete a scheduled slot (only by creator)."""
+    group = get_group_by_identifier(identifier, db)
+
     slot = db.query(ScheduledSlot).filter(
         ScheduledSlot.id == slot_id,
-        ScheduledSlot.group_id == group_id,
+        ScheduledSlot.group_id == group.id,
         ScheduledSlot.created_by == current_user.id,
     ).first()
     if not slot:
@@ -312,17 +331,15 @@ def delete_slot(
     return {"success": True, "message": "Slot deleted"}
 
 
-@router.post("/{group_id}/add-member")
+@router.post("/{identifier}/add-member")
 def add_member(
-    group_id: int,
+    identifier: str,
     req: AddMemberRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Creator adds member by username."""
-    group = db.query(Group).filter(Group.id == group_id).first()
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found")
+    group = get_group_by_identifier(identifier, db)
     if group.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Only the group creator can add members")
 
@@ -331,7 +348,7 @@ def add_member(
         raise HTTPException(status_code=404, detail=f"User '{req.username}' not found on SyncSpace")
 
     existing = db.query(GroupMember).filter(
-        GroupMember.group_id == group_id,
+        GroupMember.group_id == group.id,
         GroupMember.user_id == target_user.id,
     ).first()
     if existing:
@@ -344,24 +361,22 @@ def add_member(
     return {"success": True, "group": _group_dict(group, db)}
 
 
-@router.delete("/{group_id}/members/{user_id}")
+@router.delete("/{identifier}/members/{user_id}")
 def remove_member(
-    group_id: int,
+    identifier: str,
     user_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Creator removes a member."""
-    group = db.query(Group).filter(Group.id == group_id).first()
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found")
+    group = get_group_by_identifier(identifier, db)
     if group.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Only the group creator can remove members")
     if user_id == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot remove yourself — use leave instead")
 
     member = db.query(GroupMember).filter(
-        GroupMember.group_id == group_id,
+        GroupMember.group_id == group.id,
         GroupMember.user_id == user_id,
     ).first()
     if not member:
@@ -373,28 +388,25 @@ def remove_member(
     return {"success": True, "group": _group_dict(group, db)}
 
 
-@router.post("/{group_id}/leave")
+@router.post("/{identifier}/leave")
 def leave_group(
-    group_id: int,
+    identifier: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Any member leaves group."""
-    group = db.query(Group).filter(Group.id == group_id).first()
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found")
+    group = get_group_by_identifier(identifier, db)
 
     member = db.query(GroupMember).filter(
-        GroupMember.group_id == group_id,
+        GroupMember.group_id == group.id,
         GroupMember.user_id == current_user.id,
     ).first()
     if not member:
         raise HTTPException(status_code=403, detail="Not a member of this group")
 
-    # If caller is creator
     if group.created_by == current_user.id:
         other_members = db.query(GroupMember).filter(
-            GroupMember.group_id == group_id,
+            GroupMember.group_id == group.id,
             GroupMember.user_id != current_user.id
         ).order_by(GroupMember.joined_at).all()
 
@@ -415,16 +427,14 @@ def leave_group(
         return {"success": True, "message": "Left group"}
 
 
-@router.delete("/{group_id}")
+@router.delete("/{identifier}")
 def delete_group(
-    group_id: int,
+    identifier: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Creator deletes group entirely."""
-    group = db.query(Group).filter(Group.id == group_id).first()
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found")
+    group = get_group_by_identifier(identifier, db)
     if group.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Only the group creator can delete the group")
     
@@ -433,17 +443,15 @@ def delete_group(
     return {"success": True, "message": "Group deleted"}
 
 
-@router.put("/{group_id}")
+@router.put("/{identifier}")
 def update_group(
-    group_id: int,
+    identifier: str,
     req: UpdateGroupRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Creator updates name/description."""
-    group = db.query(Group).filter(Group.id == group_id).first()
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found")
+    group = get_group_by_identifier(identifier, db)
     if group.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Only the group creator can update the group")
     

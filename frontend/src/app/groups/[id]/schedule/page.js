@@ -23,6 +23,7 @@ export default function MeetingSchedulerPage({ params }) {
     const [group, setGroup] = useState(null);
     const [members, setMembers] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [initError, setInitError] = useState('');
 
     // Step state
     const [step, setStep] = useState(1);
@@ -85,7 +86,11 @@ export default function MeetingSchedulerPage({ params }) {
             setFinalSelection(null);
             setStep(2);
         } catch (err) {
-            toast.error("Failed to find slots: " + err.message);
+            if (err.status === 400 && err.message.toLowerCase().includes("import")) {
+                setInitError("MISSING_SCHEDULE");
+            } else {
+                toast.error("Failed to find slots: " + err.message);
+            }
         } finally {
             setFindingSlots(false);
         }
@@ -215,6 +220,21 @@ export default function MeetingSchedulerPage({ params }) {
         <div className="loader-container">
             <div className="spinner"></div>
             <p className="font-mono text-muted text-sm tracking-widest uppercase">LOADING SCHEDULER...</p>
+        </div>
+    );
+
+    if (initError === "MISSING_SCHEDULE") return (
+        <div style={{ maxWidth: '600px', margin: '4rem auto', textAlign: 'center' }}>
+            <h3 className="font-serif" style={{ fontSize: '2rem', marginBottom: '1rem' }}>Schedule Required.</h3>
+            <p className="font-mono text-muted" style={{ marginBottom: '2rem' }}>You must import a timetable via the Dashboard first to book a collaborative session.</p>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                <button className="btn btn-outline" onClick={() => router.push(`/groups/${id}`)}>
+                    ← BACK TO GROUP
+                </button>
+                <button className="btn btn-primary" onClick={() => router.push('/upload')}>
+                    IMPORT TIMETABLE →
+                </button>
+            </div>
         </div>
     );
 

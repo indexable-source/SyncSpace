@@ -123,7 +123,7 @@ export default function HomePage() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
             {meetings.map(m => (
-              <Link href={`/groups/${m.group_id}`} key={m.id} style={{ textDecoration: 'none' }}>
+              <Link href={`/groups/${m.group_invite_code}`} key={m.id} style={{ textDecoration: 'none' }}>
                 <div className="card-invert" style={{ padding: '1.2rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
                     <strong className="font-serif" style={{ fontSize: '1.1rem' }}>{m.title}</strong>

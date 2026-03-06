@@ -35,17 +35,32 @@ def minutes_to_time(minutes: int) -> str:
     m = minutes % 60
     return f"{h:02d}:{m:02d}"
 
-@router.post("/groups/{group_id}/find-slots")
+def get_group_by_identifier(identifier: str, db: Session) -> Group:
+    if identifier.isdigit():
+        group = db.query(Group).filter(Group.id == int(identifier)).first()
+        if group: return group
+    group = db.query(Group).filter(Group.invite_code == identifier.upper()).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    return group
+
+@router.post("/groups/{identifier}/find-slots")
 def find_slots(
-    group_id: int,
+    identifier: str,
     req: FindSlotsRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Find available meeting slots for a subset of members."""
+    my_schedule_count = db.query(Schedule).filter(Schedule.user_id == current_user.id).count()
+    if my_schedule_count == 0:
+        raise HTTPException(status_code=400, detail="You must import a timetable via the Dashboard first to sync schedules.")
+        
+    group = get_group_by_identifier(identifier, db)
+
     # 1. Verify caller is a member
     is_member = db.query(GroupMember).filter(
-        GroupMember.group_id == group_id,
+        GroupMember.group_id == group.id,
         GroupMember.user_id == current_user.id
     ).first()
     if not is_member:
@@ -57,7 +72,7 @@ def find_slots(
         u = db.query(User).filter(User.id == uid).first()
         if u:
             # check if they are in the group
-            in_group = db.query(GroupMember).filter(GroupMember.group_id == group_id, GroupMember.user_id == uid).first()
+            in_group = db.query(GroupMember).filter(GroupMember.group_id == group.id, GroupMember.user_id == uid).first()
             if in_group:
                 target_users.append(u)
     
@@ -132,17 +147,23 @@ def find_slots(
     }
 
 
-@router.post("/groups/{group_id}/meetings")
+@router.post("/groups/{identifier}/meetings")
 def create_meeting(
-    group_id: int,
+    identifier: str,
     req: CreateMeetingRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Create a meeting."""
+    my_schedule_count = db.query(Schedule).filter(Schedule.user_id == current_user.id).count()
+    if my_schedule_count == 0:
+        raise HTTPException(status_code=400, detail="You must import a timetable first to book a session.")
+
+    group = get_group_by_identifier(identifier, db)
+
     # Validate group
     is_member = db.query(GroupMember).filter(
-        GroupMember.group_id == group_id,
+        GroupMember.group_id == group.id,
         GroupMember.user_id == current_user.id
     ).first()
     if not is_member:
@@ -156,7 +177,7 @@ def create_meeting(
 
     # Validate participants
     for uid in req.participant_ids:
-        in_group = db.query(GroupMember).filter(GroupMember.group_id == group_id, GroupMember.user_id == uid).first()
+        in_group = db.query(GroupMember).filter(GroupMember.group_id == group.id, GroupMember.user_id == uid).first()
         if not in_group:
             raise HTTPException(status_code=400, detail=f"User {uid} is not a member of this group")
 
@@ -186,7 +207,7 @@ def create_meeting(
 
     # Create meeting
     meeting = Meeting(
-        group_id=group_id,
+        group_id=group.id,
         created_by=current_user.id,
         title=req.title,
         description=req.description,
@@ -209,21 +230,23 @@ def create_meeting(
     return {"success": True, "meeting": {"id": meeting.id, "title": meeting.title}}
 
 
-@router.get("/groups/{group_id}/meetings")
+@router.get("/groups/{identifier}/meetings")
 def list_group_meetings(
-    group_id: int,
+    identifier: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """List group meetings."""
+    group = get_group_by_identifier(identifier, db)
+
     is_member = db.query(GroupMember).filter(
-        GroupMember.group_id == group_id,
+        GroupMember.group_id == group.id,
         GroupMember.user_id == current_user.id
     ).first()
     if not is_member:
         raise HTTPException(status_code=403, detail="Not a member of this group")
 
-    meetings = db.query(Meeting).filter(Meeting.group_id == group_id).order_by(Meeting.day_of_week, Meeting.start_time).all()
+    meetings = db.query(Meeting).filter(Meeting.group_id == group.id).order_by(Meeting.day_of_week, Meeting.start_time).all()
     res = []
     for m in meetings:
         participants = db.query(MeetingParticipant).filter(MeetingParticipant.meeting_id == m.id).all()
@@ -249,19 +272,17 @@ def list_group_meetings(
     return {"success": True, "meetings": res}
 
 
-@router.delete("/groups/{group_id}/meetings/{meeting_id}")
+@router.delete("/groups/{identifier}/meetings/{meeting_id}")
 def delete_meeting(
-    group_id: int,
+    identifier: str,
     meeting_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Delete meeting (creator of meeting or creator of group)."""
-    group = db.query(Group).filter(Group.id == group_id).first()
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found")
+    group = get_group_by_identifier(identifier, db)
 
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id, Meeting.group_id == group_id).first()
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id, Meeting.group_id == group.id).first()
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
 
@@ -302,6 +323,7 @@ def get_dashboard_meetings(
             "id": m.id,
             "title": m.title,
             "group_id": m.group_id,
+            "group_invite_code": group.invite_code if group else "Unknown",
             "group_name": group.name if group else "Unknown",
             "day_of_week": m.day_of_week,
             "day_name": DAYS[m.day_of_week] if m.day_of_week < len(DAYS) else "Unknown",

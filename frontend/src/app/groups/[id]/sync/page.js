@@ -5,7 +5,28 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const HOURS = Array.from({ length: 11 }, (_, i) => i + 8); // 8 AM to 6 PM
+
+// Copying the EXACT segments from the Dashboard for unification
+const SEGMENTS = [
+    { id: 'P1', label: 'I', time: '08:10 – 09:00', type: 'period', minStart: 10, minEnd: 60 },
+    { id: 'P2', label: 'II', time: '09:00 – 09:50', type: 'period', minStart: 60, minEnd: 110 },
+    { id: 'B1', label: 'Break I', time: '09:50 – 10:00', type: 'break', minStart: 110, minEnd: 120 },
+    { id: 'P3', label: 'III', time: '10:00 – 10:50', type: 'period', minStart: 120, minEnd: 170 },
+    { id: 'P4', label: 'IV', time: '10:50 – 11:40', type: 'period', minStart: 170, minEnd: 220 },
+    { id: 'B2', label: 'Break II', time: '11:40 – 11:50', type: 'break', minStart: 220, minEnd: 230 },
+    { id: 'P5', label: 'V', time: '11:50 – 12:40', type: 'period', minStart: 230, minEnd: 280 },
+    { id: 'LB', label: 'Lunch', time: '12:40 – 13:20', type: 'lunch', minStart: 280, minEnd: 320 },
+    { id: 'P6', label: 'VI', time: '13:20 – 14:10', type: 'period', minStart: 320, minEnd: 370 },
+    { id: 'B3', label: 'Break III', time: '14:10 – 14:20', type: 'break', minStart: 370, minEnd: 380 },
+    { id: 'P7', label: 'VII', time: '14:20 – 15:10', type: 'period', minStart: 380, minEnd: 430 },
+    { id: 'P8', label: 'VIII', time: '15:10 – 16:00', type: 'period', minStart: 430, minEnd: 480 },
+];
+
+const segHeight = (seg) => {
+    if (seg.type === 'break') return 20;
+    if (seg.type === 'lunch') return 36;
+    return 75; // all class periods are ~50 min
+};
 
 export default function GroupSyncPage({ params }) {
     const { id } = use(params);
@@ -25,7 +46,11 @@ export default function GroupSyncPage({ params }) {
                 const data = await api.syncGroupSchedules(id);
                 setSyncData(data);
             } catch (err) {
-                setError(err.message || 'Failed to sync schedules');
+                if (err.status === 400 && err.message.toLowerCase().includes("import")) {
+                    setError("MISSING_SCHEDULE");
+                } else {
+                    setError(err.message || 'Failed to sync schedules');
+                }
             } finally {
                 setLoading(false);
             }
@@ -63,6 +88,21 @@ export default function GroupSyncPage({ params }) {
         </div>
     );
 
+    if (error === "MISSING_SCHEDULE") return (
+        <div style={{ maxWidth: '600px', margin: '4rem auto', textAlign: 'center' }}>
+            <h3 className="font-serif" style={{ fontSize: '2rem', marginBottom: '1rem' }}>Schedule Required.</h3>
+            <p className="font-mono text-muted" style={{ marginBottom: '2rem' }}>You must import a timetable via the Dashboard first to use sync and scheduling features.</p>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                <button className="btn btn-outline" onClick={() => router.push(`/groups/${id}`)}>
+                    ← BACK TO GROUP
+                </button>
+                <button className="btn btn-primary" onClick={() => router.push('/upload')}>
+                    IMPORT TIMETABLE →
+                </button>
+            </div>
+        </div>
+    );
+
     if (error) return (
         <div style={{ maxWidth: '600px', margin: '4rem auto', textAlign: 'center' }}>
             <h3 className="font-serif" style={{ color: 'var(--accent-primary)', fontSize: '2rem', marginBottom: '1rem' }}>Sync Failed.</h3>
@@ -73,16 +113,33 @@ export default function GroupSyncPage({ params }) {
         </div>
     );
 
-    // Helper to draw the free slots on the grid
-    const getGridStyle = (slot) => {
-        const startHour = parseInt(slot.start_time.split(':')[0]);
-        const startMin = parseInt(slot.start_time.split(':')[1]);
-        const endHour = parseInt(slot.end_time.split(':')[0]);
-        const endMin = parseInt(slot.end_time.split(':')[1]);
+    // Helper to draw the free slots on the unified grid
+    const timeToMin = (t) => {
+        const [h, m] = t.split(':').map(Number);
+        return (h - 8) * 60 + m;
+    };
 
-        const rowStart = ((startHour - 8) * 60 + startMin) / 30 + 2;
-        let rowEnd = Math.floor(((endHour - 8) * 60 + endMin) / 30) + 2;
-        if (rowEnd <= rowStart) rowEnd = rowStart + 1;
+    const minToY = (min) => {
+        let y = 0;
+        for (const seg of SEGMENTS) {
+            const h = segHeight(seg);
+            if (min <= seg.minStart) return y;
+            if (min <= seg.minEnd) {
+                const frac = (min - seg.minStart) / (seg.minEnd - seg.minStart);
+                return y + frac * h;
+            }
+            y += h;
+        }
+        return y;
+    };
+
+    const getGridStyle = (slot) => {
+        const startMin = timeToMin(slot.start_time);
+        const endMin = timeToMin(slot.end_time);
+
+        const top = minToY(startMin);
+        const bottom = minToY(endMin);
+        const height = bottom - top;
 
         const colStart = slot.day_of_week + 2;
 
@@ -92,25 +149,26 @@ export default function GroupSyncPage({ params }) {
 
         return {
             gridColumn: colStart,
-            gridRow: `${rowStart} / ${rowEnd}`,
-            background: isSelected ? 'var(--text-primary)' : 'var(--bg-elevated)',
-            border: `var(--border-width) solid ${isSelected ? 'var(--text-primary)' : 'var(--border-color)'}`,
-            color: isSelected ? 'var(--bg-base)' : 'var(--text-primary)',
-            padding: '0.4rem',
-            borderRadius: '0',
-            fontSize: '0.75rem',
-            fontFamily: 'var(--font-jetbrains-mono), monospace',
+            gridRow: '2 / span 12', // Span the whole content area, we use position absolute inside it
+            position: 'absolute',
+            top: `${top}px`,
+            height: `${height}px`,
+            left: 0,
+            right: 0,
+            background: isSelected ? 'var(--text-primary)' : 'var(--accent-success)',
+            border: `var(--border-width) solid ${isSelected ? 'var(--text-primary)' : 'rgba(0,0,0,0.2)'}`,
+            color: isSelected ? 'var(--bg-base)' : 'var(--bg-base)',
+            padding: '0.25rem',
+            borderRadius: 'var(--radius-sm)',
             cursor: 'pointer',
+            transition: 'all 0.15s ease-out',
+            zIndex: isSelected ? 10 : 5,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
             alignItems: 'center',
-            transition: 'all 0.15s ease',
-            position: 'relative',
-            margin: '2px',
-            overflow: 'hidden',
-            zIndex: isSelected ? 20 : 10,
-            textTransform: 'uppercase'
+            opacity: 0.9,
+            overflow: 'hidden'
         };
     };
 
@@ -163,19 +221,30 @@ export default function GroupSyncPage({ params }) {
                         <div style={{
                             display: 'grid',
                             gridTemplateColumns: '60px repeat(6, minmax(120px, 1fr))',
-                            gridTemplateRows: `40px repeat(${HOURS.length * 2}, 30px)`,
+                            gridTemplateRows: `40px ${SEGMENTS.reduce((sum, s) => sum + segHeight(s), 0)}px`,
                             minWidth: '800px',
                             position: 'relative'
                         }}>
 
-                            {/* Grid Lines */}
-                            {Array.from({ length: HOURS.length * 2 }).map((_, idx) => (
-                                <div key={`hr-${idx}`} style={{
-                                    gridColumn: '2 / span 6',
-                                    gridRow: idx + 2,
-                                    borderBottom: idx % 2 === 1 ? 'var(--border-width) dotted var(--border-color)' : 'var(--border-width) solid var(--border-color)',
-                                }} />
-                            ))}
+                            {/* Background Grid Lines for Segments */}
+                            <div style={{ gridColumn: '2 / span 6', gridRow: 2, position: 'relative' }}>
+                                {SEGMENTS.map((seg, idx) => {
+                                    const y = minToY(seg.minStart);
+                                    const h = segHeight(seg);
+                                    return (
+                                        <div key={`bg-${idx}`} style={{
+                                            position: 'absolute',
+                                            top: y,
+                                            left: 0,
+                                            right: 0,
+                                            height: h,
+                                            borderBottom: 'var(--border-width) solid var(--border-light)',
+                                            background: seg.type === 'break' || seg.type === 'lunch' ? 'var(--bg-hover)' : 'transparent',
+                                            zIndex: 1
+                                        }} />
+                                    );
+                                })}
+                            </div>
                             {Array.from({ length: 6 }).map((_, idx) => (
                                 <div key={`col-${idx}`} style={{
                                     gridColumn: idx + 2,
@@ -207,46 +276,57 @@ export default function GroupSyncPage({ params }) {
                                 </div>
                             ))}
 
-                            {/* Time Labels */}
-                            {HOURS.map((hour, i) => (
-                                <div key={hour} className="font-mono" style={{
-                                    gridColumn: 1,
-                                    gridRow: `${i * 2 + 2} / span 2`,
-                                    background: 'var(--bg-base)',
-                                    borderRight: 'var(--border-width) solid var(--border-color)',
-                                    textAlign: 'right',
-                                    padding: '0.5rem',
-                                    fontSize: '0.7rem',
-                                    color: 'var(--text-muted)',
-                                    zIndex: 4,
-                                    position: 'sticky',
-                                    left: 0
-                                }}>
-                                    {hour > 12 ? hour - 12 : hour}{hour >= 12 ? ' PM' : ' AM'}
-                                </div>
-                            ))}
+                            {/* Y-Axis: Segments */}
+                            <div style={{ gridColumn: 1, gridRow: 2, position: 'relative', borderRight: 'var(--border-width) solid var(--border-color)' }}>
+                                {SEGMENTS.map((seg, idx) => {
+                                    const y = minToY(seg.minStart);
+                                    const h = segHeight(seg);
+                                    return (
+                                        <div key={`seg-${idx}`} style={{
+                                            position: 'absolute',
+                                            top: y,
+                                            left: 0,
+                                            right: 0,
+                                            height: h,
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            justifyContent: 'center',
+                                            alignItems: 'center',
+                                            borderBottom: 'var(--border-width) solid var(--border-light)',
+                                            background: seg.type === 'break' || seg.type === 'lunch' ? 'var(--bg-hover)' : 'var(--bg-base)'
+                                        }}>
+                                            <span className="font-serif" style={{ fontSize: '0.85rem' }}>{seg.label}</span>
+                                            {seg.type === 'period' && (
+                                                <span className="font-mono text-muted" style={{ fontSize: '0.55rem' }}>{seg.time.split(' ')[0]}</span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
 
                             {/* Free Slots */}
                             {(syncData.free_slots || []).map((slot, idx) => (
-                                <div
-                                    key={idx}
-                                    style={getGridStyle(slot)}
-                                    onClick={() => setSelectedSlot(slot)}
-                                    onMouseEnter={(e) => {
-                                        if (!selectedSlot || (selectedSlot.day_of_week !== slot.day_of_week || selectedSlot.start_time !== slot.start_time)) {
-                                            e.currentTarget.style.background = 'var(--text-primary)';
-                                            e.currentTarget.style.color = 'var(--bg-base)';
-                                        }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        if (!selectedSlot || (selectedSlot.day_of_week !== slot.day_of_week || selectedSlot.start_time !== slot.start_time)) {
-                                            e.currentTarget.style.background = 'var(--bg-elevated)';
-                                            e.currentTarget.style.color = 'var(--text-primary)';
-                                        }
-                                    }}
-                                >
-                                    <div style={{ fontWeight: 'bold', marginBottom: '0.2rem' }}>AVAILABLE</div>
-                                    <div style={{ opacity: 0.9, fontSize: '0.65rem' }}>{slot.start_time} - {slot.end_time}</div>
+                                <div key={`col-wrap-${idx}`} style={{ gridColumn: slot.day_of_week + 2, gridRow: 2, position: 'relative', zIndex: 10 }}>
+                                    <div
+                                        key={idx}
+                                        style={getGridStyle(slot)}
+                                        onClick={() => setSelectedSlot(slot)}
+                                        onMouseEnter={(e) => {
+                                            if (!selectedSlot || (selectedSlot.day_of_week !== slot.day_of_week || selectedSlot.start_time !== slot.start_time)) {
+                                                e.currentTarget.style.background = 'var(--text-primary)';
+                                                e.currentTarget.style.color = 'var(--bg-base)';
+                                            }
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            if (!selectedSlot || (selectedSlot.day_of_week !== slot.day_of_week || selectedSlot.start_time !== slot.start_time)) {
+                                                e.currentTarget.style.background = 'var(--bg-elevated)';
+                                                e.currentTarget.style.color = 'var(--text-primary)';
+                                            }
+                                        }}
+                                    >
+                                        <div style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>AVAILABLE</div>
+                                        <div style={{ opacity: 0.9, fontSize: '0.65rem' }}>{slot.start_time} - {slot.end_time}</div>
+                                    </div>
                                 </div>
                             ))}
                         </div>

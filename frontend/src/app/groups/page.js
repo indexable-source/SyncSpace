@@ -196,7 +196,7 @@ export default function GroupsPage() {
                         const creatorName = creator ? (creator.id === user?.id ? 'you' : creator.username) : 'unknown';
 
                         return (
-                            <Link href={`/groups/${group.id}`} key={group.id} style={{ textDecoration: 'none' }}>
+                            <Link href={`/groups/${group.invite_code}`} key={group.id} style={{ textDecoration: 'none' }}>
                                 <div
                                     className="card-invert"
                                     style={{
