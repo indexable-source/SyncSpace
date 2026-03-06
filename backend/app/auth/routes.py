@@ -40,6 +40,7 @@ def _user_dict(user: User) -> dict:
         "email": user.email,
         "display_name": user.display_name or user.username,
         "created_at": user.created_at.isoformat() if user.created_at else None,
+        "erp_roll_number": user.erp_roll_number,
     }
 
 
@@ -177,7 +178,51 @@ def change_password(
 
     current_user.password_hash = hash_password(req.new_password)
     db.commit()
+    db.refresh(current_user)
     return {"success": True, "message": "Password changed successfully"}
+
+
+class LinkErpRequest(BaseModel):
+    roll_number: str
+
+@router.post("/link-erp")
+def link_erp(
+    req: LinkErpRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Link an ERP roll number to the current user's account."""
+    roll = req.roll_number.strip().upper()
+
+    # Validate format: must be 5-20 alphanumeric characters
+    if not roll or len(roll) < 5 or len(roll) > 20 or not roll.isalnum():
+        raise HTTPException(status_code=400, detail="Invalid roll number format (5-20 alphanumeric characters)")
+
+    # Check if already linked to ANOTHER account
+    existing = db.query(User).filter(
+        User.erp_roll_number == roll,
+        User.id != current_user.id,
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="This roll number is already linked to another account")
+
+    # If same user re-links the same roll, it's a no-op
+    current_user.erp_roll_number = roll
+    db.commit()
+    db.refresh(current_user)
+    return {"success": True, "user": _user_dict(current_user), "message": f"Roll number {roll} linked successfully"}
+
+@router.delete("/unlink-erp")
+def unlink_erp(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Remove the linked ERP roll number from the current user's account."""
+    if not current_user.erp_roll_number:
+        raise HTTPException(status_code=400, detail="No roll number is currently linked")
+    current_user.erp_roll_number = None
+    db.commit()
+    return {"success": True, "message": "Roll number unlinked successfully"}
 
 
 @router.delete("/account")

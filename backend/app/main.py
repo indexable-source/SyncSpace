@@ -61,6 +61,18 @@ def create_app() -> FastAPI:
     from app import models as db_models
     Base.metadata.create_all(bind=engine)
 
+    # Auto-migration: add erp_roll_number column if missing
+    from sqlalchemy import inspect as sa_inspect, text
+    inspector = sa_inspect(engine)
+    existing_cols = [c["name"] for c in inspector.get_columns("users")]
+    if "erp_roll_number" not in existing_cols:
+        with engine.connect() as conn:
+            conn.execute(text(
+                "ALTER TABLE users ADD COLUMN erp_roll_number VARCHAR(20)"
+            ))
+            conn.commit()
+        logger.info("Migration: added erp_roll_number column to users table")
+
     # Register routers
     from app.auth.routes import router as auth_router
     from app.erp.routes import router as erp_router

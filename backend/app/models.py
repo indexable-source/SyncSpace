@@ -13,6 +13,7 @@ class User(Base):
     password_hash = Column(String(256), nullable=False)
     display_name = Column(String(128), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    erp_roll_number = Column(String(20), unique=True, nullable=True, index=True)
 
     schedules = relationship("Schedule", back_populates="user", cascade="all, delete-orphan")
     created_groups = relationship("Group", back_populates="creator", cascade="all, delete-orphan")

@@ -144,6 +144,17 @@ export const api = {
     return result;
   },
 
+  async linkErp(rollNumber) {
+    return this.request('/auth/link-erp', {
+      method: 'POST',
+      body: JSON.stringify({ roll_number: rollNumber })
+    });
+  },
+
+  async unlinkErp() {
+    return this.request('/auth/unlink-erp', { method: 'DELETE' });
+  },
+
   // --- ERP Endpoints ---
 
   async initLogin() {

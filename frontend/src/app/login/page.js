@@ -118,20 +118,21 @@ export default function LoginPage() {
     return (
         <div style={{
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'center',
-            minHeight: '100vh',
+            height: '100vh',
             width: '100vw',
             position: 'fixed',
             top: 0,
             left: 0,
             background: 'var(--bg-base)',
-            zIndex: 100
+            zIndex: 100,
+            overflowY: 'auto',
         }}>
             <div className="noise-bg"></div>
             <div className="dot-grid"></div>
 
-            <div className="card animate-fade-in" style={{ width: '100%', maxWidth: '420px', padding: '2.5rem' }}>
+            <div className="card animate-fade-in" style={{ width: '100%', maxWidth: '420px', padding: '2.5rem', margin: '2rem auto' }}>
                 <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
                     <h1 className="font-serif">SyncSpace.</h1>
                     <p className="font-mono text-muted" style={{ fontSize: '0.8rem' }}>Group Schedule Synchronizer</p>

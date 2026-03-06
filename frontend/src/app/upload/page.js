@@ -4,10 +4,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useToast } from '@/context/ToastContext';
+import { useAuth } from '@/context/AuthContext';
 
 export default function UploadPage() {
     const router = useRouter();
     const toast = useToast();
+    const { updateUser } = useAuth();
 
     // Tab State
     const [activeTab, setActiveTab] = useState('erp'); // 'erp' | 'image'
@@ -84,6 +86,23 @@ export default function UploadPage() {
             }
 
             toast.success('ERP login successful! Fetching search parameters...');
+
+            // Auto-link roll number to the user's SyncSpace account
+            try {
+                const linkResult = await api.linkErp(erpCreds.username);
+                if (linkResult.user) {
+                    updateUser(linkResult.user);
+                }
+                toast.info(`Roll number ${erpCreds.username.toUpperCase()} linked to your account.`);
+            } catch (linkErr) {
+                // Non-fatal: if linking fails (e.g. already linked to another account), 
+                // the timetable import still proceeds normally.
+                if (linkErr.status === 409) {
+                    toast.warning('This roll number is already linked to a different account.');
+                } else {
+                    console.warn('Could not auto-link roll number:', linkErr.message);
+                }
+            }
 
             // 2. Fetch timetable options (academicyear, semesterid)
             const optionsData = await api.getTimetableOptions(sessionId);

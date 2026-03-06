@@ -29,6 +29,22 @@ export default function SettingsPage() {
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
     const [deleting, setDeleting] = useState(false);
 
+    // Unlink ERP
+    const [unlinking, setUnlinking] = useState(false);
+
+    const handleUnlinkErp = async () => {
+        setUnlinking(true);
+        try {
+            await api.unlinkErp();
+            updateUser({ erp_roll_number: null });
+            toast.success('ERP roll number unlinked from your account.');
+        } catch (err) {
+            toast.error(err.message || 'Failed to unlink roll number');
+        } finally {
+            setUnlinking(false);
+        }
+    };
+
     const startEditProfile = () => {
         setProfileData({
             display_name: user?.display_name || '',
@@ -233,6 +249,64 @@ export default function SettingsPage() {
                                 </div>
                             </form>
                         )}
+                    </div>
+                </div>
+
+                {/* Linked Accounts */}
+                <div>
+                    <h3 className="font-serif" style={{ marginBottom: '1.5rem', fontSize: '1.5rem' }}>Linked Accounts.</h3>
+                    <div style={{
+                        border: 'var(--border-width) solid var(--border-color)',
+                        borderRadius: '0',
+                        background: 'var(--bg-elevated)',
+                        padding: '2rem'
+                    }}>
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            border: 'var(--border-width) solid var(--border-color)',
+                            background: 'var(--bg-base)',
+                            padding: '1.5rem',
+                            borderRadius: 'var(--radius-sm)'
+                        }}>
+                            <div>
+                                <h4 className="font-mono" style={{ margin: '0 0 1rem 0', textTransform: 'uppercase' }}>KL UNIVERSITY ERP</h4>
+                                {user.erp_roll_number ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <div className="font-mono" style={{ fontSize: '0.85rem' }}>
+                                            <span className="text-muted">ROLL NO:</span> <strong style={{ color: 'var(--text-primary)' }}>{user.erp_roll_number}</strong>
+                                        </div>
+                                        <div className="font-mono" style={{ fontSize: '0.75rem' }}>
+                                            <span className="text-muted">STATUS:</span> <span style={{ color: 'var(--color-subj-4)' }}>● LINKED</span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="font-mono" style={{ fontSize: '0.75rem' }}>
+                                        <span className="text-muted">STATUS:</span> <span>○ NOT LINKED</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div>
+                                {user.erp_roll_number ? (
+                                    <button
+                                        className="btn btn-outline"
+                                        onClick={handleUnlinkErp}
+                                        disabled={unlinking}
+                                    >
+                                        {unlinking ? 'UNLINKING...' : 'UNLINK'}
+                                    </button>
+                                ) : (
+                                    <button
+                                        className="btn btn-primary"
+                                        onClick={() => router.push('/upload')}
+                                    >
+                                        LINK VIA IMPORT →
+                                    </button>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
