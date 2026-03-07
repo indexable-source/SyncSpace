@@ -44,25 +44,40 @@ export const api = {
       const response = await fetch(`${API_BASE}${endpoint}`, config);
       clearTimeout(timeoutId);
 
-      // Handle 401 — token expired/invalid
-      if (response.status === 401) {
-        localStorage.removeItem('token');
-        // Dispatch custom event that AuthContext listens for
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new Event('auth-expired'));
-        }
-        throw new ApiError('Session expired. Please log in again.', 401);
-      }
-
       let data;
       try {
         data = await response.json();
       } catch {
         // Response not JSON
+        if (response.status === 401) {
+          localStorage.removeItem('token');
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('auth-expired'));
+          }
+          throw new ApiError('Session expired. Please log in again.', 401);
+        }
         if (!response.ok) {
           throw new ApiError(`Request failed (${response.status})`, response.status);
         }
         return {};
+      }
+
+      // Handle 401 — token expired/invalid
+      if (response.status === 401) {
+        const errorMsg = data?.detail || data?.error || data?.message || '';
+
+        // Distinguish between ERP session expiration and App JWT expiration.
+        // If it's an ERP session expiration, do NOT dispatch auth-expired (which logs user out of the App).
+        const isErpSessionExpiry = errorMsg.toLowerCase().includes('erp') || errorMsg.toLowerCase().includes('session');
+
+        if (!isErpSessionExpiry) {
+          localStorage.removeItem('token');
+          // Dispatch custom event that AuthContext listens for
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('auth-expired'));
+          }
+        }
+        throw new ApiError(errorMsg || 'Session expired. Please log in again.', 401, data);
       }
 
       if (!response.ok) {
@@ -89,6 +104,21 @@ export const api = {
 
       throw error;
     }
+  },
+
+  // --- Bug Reports ---
+
+  async submitBugReport(title, description, severity, pageUrl) {
+    return this.request('/bugs', {
+      method: 'POST',
+      body: JSON.stringify({
+        title,
+        description,
+        severity,
+        page_url: pageUrl,
+        user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : ''
+      }),
+    });
   },
 
   // --- Auth Endpoints ---

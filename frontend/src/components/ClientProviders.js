@@ -5,6 +5,7 @@ import { ToastProvider } from '@/context/ToastContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Navbar from '@/components/Navbar';
+import BugReporter from '@/components/BugReporter';
 
 export default function ClientProviders({ children }) {
     return (
@@ -17,6 +18,7 @@ export default function ClientProviders({ children }) {
                             <main className="main-content">
                                 {children}
                             </main>
+                            <BugReporter />
                         </div>
                     </ProtectedRoute>
                 </ToastProvider>

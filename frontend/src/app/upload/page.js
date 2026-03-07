@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useToast } from '@/context/ToastContext';
@@ -10,6 +10,23 @@ export default function UploadPage() {
     const router = useRouter();
     const toast = useToast();
     const { updateUser } = useAuth();
+
+    // Warning State
+    const [hasExistingSchedule, setHasExistingSchedule] = useState(false);
+
+    useEffect(() => {
+        const checkExisting = async () => {
+            try {
+                const schedule = await api.getMySchedule();
+                if (schedule?.entries?.length > 0) {
+                    setHasExistingSchedule(true);
+                }
+            } catch (err) {
+                // Ignore if they just don't have one
+            }
+        };
+        checkExisting();
+    }, []);
 
     // Tab State
     const [activeTab, setActiveTab] = useState('erp'); // 'erp' | 'image'
@@ -88,21 +105,13 @@ export default function UploadPage() {
 
             toast.success('ERP login successful! Fetching search parameters...');
 
-            // Auto-link roll number to the user's SyncSpace account
+            // Note: ERP Roll number auto-linking is now securely handled on the backend via /complete-login.
+            // If the user's role bound successfully, updating the user session here will reflect it.
             try {
-                const linkResult = await api.linkErp(erpCreds.username);
-                if (linkResult.user) {
-                    updateUser(linkResult.user);
-                }
-                toast.info(`Roll number ${erpCreds.username.toUpperCase()} linked to your account.`);
-            } catch (linkErr) {
-                // Non-fatal: if linking fails (e.g. already linked to another account), 
-                // the timetable import still proceeds normally.
-                if (linkErr.status === 409) {
-                    toast.warning('This roll number is already linked to a different account.');
-                } else {
-                    console.warn('Could not auto-link roll number:', linkErr.message);
-                }
+                const updatedUser = await api.getMe();
+                updateUser(updatedUser);
+            } catch (e) {
+                console.warn("Failed to implicitly refresh user context after ERP bind", e);
             }
 
             // 2. Fetch timetable options (academicyear, semesterid)
@@ -214,6 +223,26 @@ export default function UploadPage() {
                     Connect to your university ERP or upload a screenshot.
                 </p>
             </div>
+
+            {hasExistingSchedule && (
+                <div style={{
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--accent-warning)',
+                    padding: '1.5rem',
+                    borderRadius: 'var(--radius-md)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1rem'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+                        <h3 className="font-serif" style={{ margin: 0, color: 'var(--accent-warning)', fontSize: '1.1rem' }}>Active Timetable Detected</h3>
+                    </div>
+                    <p className="font-mono text-muted" style={{ fontSize: '0.85rem', lineHeight: 1.5 }}>
+                        You already have a timetable linked to your account. Proceeding with a new ERP Sync or Image Upload will <strong>permanently overwrite</strong> your current schedule.
+                    </p>
+                </div>
+            )}
 
             <div style={{
                 display: 'flex',

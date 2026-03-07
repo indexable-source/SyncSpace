@@ -113,3 +113,18 @@ class MeetingParticipant(Base):
 
     meeting = relationship("Meeting", back_populates="participants")
     user = relationship("User", back_populates="meeting_participations")
+
+
+class BugReport(Base):
+    __tablename__ = "bug_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    title = Column(String(256), nullable=False)
+    description = Column(Text, nullable=True)
+    severity = Column(String(20), default="medium")  # low | medium | high | critical
+    page_url = Column(String(512), nullable=True)
+    user_agent = Column(String(512), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    reporter = relationship("User")

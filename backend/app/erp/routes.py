@@ -9,10 +9,14 @@ import base64
 import logging
 import requests
 from bs4 import BeautifulSoup
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 from config import settings
+from app.database import get_db
+from app.models import User
+from app.auth.utils import get_current_user
 from app.erp import session_manager
 from app.erp.timetable_parser import extract_tables, parse_selected_table
 
@@ -93,6 +97,9 @@ def init_login():
         )
     except HTTPException:
         raise
+    except (requests.ConnectionError, requests.Timeout) as e:
+        logger.error(f"Cannot reach ERP server: {e}")
+        raise HTTPException(status_code=503, detail="University ERP server is currently unreachable. Please check your internet connection or try again later.")
     except Exception as e:
         logger.exception("Error initializing ERP login")
         raise HTTPException(status_code=500, detail=str(e))
@@ -108,24 +115,80 @@ def refresh_captcha(req: RefreshCaptchaRequest):
     try:
         session = data["session"]
 
-        # Try up to 2 times in case the ERP returns an error page on first attempt
-        for attempt in range(2):
-            captcha_url = f"{settings.ERP_CAPTCHA_URL}&refresh={attempt + 1}&v={uuid.uuid4().hex}"
-            captcha_resp = session.get(captcha_url, timeout=10, verify=False)
-            captcha_resp.raise_for_status()
+        # Yii2 captcha refresh: request with refresh=1 returns JSON with the new image URL
+        captcha_url = f"{settings.ERP_CAPTCHA_URL}&refresh=1&v={uuid.uuid4().hex}"
+        captcha_resp = session.get(captcha_url, timeout=10, verify=False)
+        captcha_resp.raise_for_status()
 
-            content_type = captcha_resp.headers.get("Content-Type", "")
-            # Validate the response is actually an image, not an HTML error page
-            if "image" in content_type and len(captcha_resp.content) > 100:
-                captcha_b64 = base64.b64encode(captcha_resp.content).decode("utf-8")
-                return {
-                    "success": True,
-                    "captcha_image": f"data:{content_type};base64,{captcha_b64}",
-                }
-            else:
-                logger.warning(f"Captcha refresh attempt {attempt + 1} returned non-image content: {content_type}")
+        content_type = captcha_resp.headers.get("Content-Type", "")
 
-        # Both attempts failed — return error so frontend can re-init
+        # Case 1: Direct image response
+        if "image" in content_type and len(captcha_resp.content) > 100:
+            captcha_b64 = base64.b64encode(captcha_resp.content).decode("utf-8")
+            return {
+                "success": True,
+                "captcha_image": f"data:{content_type};base64,{captcha_b64}",
+            }
+
+        # Case 2: Yii2 JSON response — contains {"hash1":..., "hash2":..., "url":"..."}
+        if "json" in content_type:
+            try:
+                json_data = captcha_resp.json()
+                logger.info(f"Captcha refresh returned JSON: {list(json_data.keys())}")
+                image_url = json_data.get("url", "")
+
+                if image_url:
+                    # The URL from Yii can be relative or absolute
+                    if image_url.startswith("/"):
+                        image_url = f"{settings.ERP_BASE_URL}{image_url}"
+                    elif not image_url.startswith("http"):
+                        image_url = f"{settings.ERP_BASE_URL}/{image_url}"
+
+                    # Fetch the actual captcha image from the URL
+                    img_resp = session.get(image_url, timeout=10, verify=False)
+                    img_resp.raise_for_status()
+                    img_content_type = img_resp.headers.get("Content-Type", "image/png")
+
+                    if len(img_resp.content) > 100:
+                        captcha_b64 = base64.b64encode(img_resp.content).decode("utf-8")
+                        return {
+                            "success": True,
+                            "captcha_image": f"data:{img_content_type};base64,{captcha_b64}",
+                        }
+                    else:
+                        logger.warning(f"Image from JSON url was too small ({len(img_resp.content)} bytes)")
+                else:
+                    logger.warning(f"Captcha JSON response had no 'url' field: {json_data}")
+
+                    # Fallback: fetch captcha directly without refresh param
+                    fallback_url = f"{settings.ERP_CAPTCHA_URL}&v={uuid.uuid4().hex}"
+                    fb_resp = session.get(fallback_url, timeout=10, verify=False)
+                    fb_resp.raise_for_status()
+                    fb_ct = fb_resp.headers.get("Content-Type", "image/png")
+                    if "image" in fb_ct and len(fb_resp.content) > 100:
+                        captcha_b64 = base64.b64encode(fb_resp.content).decode("utf-8")
+                        return {
+                            "success": True,
+                            "captcha_image": f"data:{fb_ct};base64,{captcha_b64}",
+                        }
+
+            except Exception as json_err:
+                logger.warning(f"Failed to parse captcha JSON response: {json_err}")
+
+        # Fallback: try fetching captcha directly (no refresh param)
+        logger.info("Attempting direct captcha fetch as final fallback")
+        direct_url = f"{settings.ERP_CAPTCHA_URL}&v={uuid.uuid4().hex}"
+        direct_resp = session.get(direct_url, timeout=10, verify=False)
+        direct_resp.raise_for_status()
+        direct_ct = direct_resp.headers.get("Content-Type", "image/png")
+
+        if "image" in direct_ct and len(direct_resp.content) > 100:
+            captcha_b64 = base64.b64encode(direct_resp.content).decode("utf-8")
+            return {
+                "success": True,
+                "captcha_image": f"data:{direct_ct};base64,{captcha_b64}",
+            }
+
         raise HTTPException(status_code=502, detail="ERP returned invalid captcha image")
     except HTTPException:
         raise
@@ -135,8 +198,12 @@ def refresh_captcha(req: RefreshCaptchaRequest):
 
 
 @router.post("/complete-login")
-def complete_login(req: CompleteLoginRequest):
-    """Complete ERP login with username, password, and captcha."""
+def complete_login(
+    req: CompleteLoginRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Complete ERP login with username, password, and captcha, then link the roll number."""
     data = session_manager.get_session(req.session_id)
     if not data:
         raise HTTPException(status_code=401, detail="Invalid or expired session")
@@ -172,7 +239,25 @@ def complete_login(req: CompleteLoginRequest):
 
         if success:
             session_manager.mark_authenticated(req.session_id, req.username)
-            return {"success": True, "message": "ERP login successful", "session_id": req.session_id}
+            
+            # Auto-link the ERP Roll Number to the User
+            roll = req.username.strip().upper()
+            
+            # Check if this roll number is already linked to ANOTHER account
+            existing = db.query(User).filter(
+                User.erp_roll_number == roll,
+                User.id != current_user.id,
+            ).first()
+            
+            if existing:
+                # If someone else synced it, we must raise a 409 conflict.
+                raise HTTPException(status_code=409, detail="This ERP Roll Number is already linked to another SyncSpace account.")
+            
+            # If valid and not conflicting, link it
+            current_user.erp_roll_number = roll
+            db.commit()
+
+            return {"success": True, "message": "ERP login successful and linked", "session_id": req.session_id}
         else:
             # Try to extract error messages
             soup = BeautifulSoup(login_resp.text, "html.parser")
@@ -183,6 +268,11 @@ def complete_login(req: CompleteLoginRequest):
             error_msg = " | ".join(errors) if errors else "Login failed — check credentials or captcha"
             return {"success": False, "error": error_msg, "retry": True}
 
+    except HTTPException:
+        raise
+    except (requests.ConnectionError, requests.Timeout) as e:
+        logger.error(f"Cannot reach ERP server: {e}")
+        raise HTTPException(status_code=503, detail="University ERP server is currently unreachable. Please check your internet connection or try again later.")
     except Exception as e:
         logger.exception("Error completing ERP login")
         raise HTTPException(status_code=500, detail=str(e))
@@ -230,6 +320,11 @@ def get_timetable_options(req: FetchDataRequest):
             "semesters": semesters,
             "page_title": _extract_page_title(resp.text),
         }
+    except HTTPException:
+        raise
+    except (requests.ConnectionError, requests.Timeout) as e:
+        logger.error(f"Cannot reach ERP server: {e}")
+        raise HTTPException(status_code=503, detail="University ERP server is currently unreachable. Please check your internet connection or try again later.")
     except Exception as e:
         logger.exception("Error fetching timetable options")
         raise HTTPException(status_code=500, detail=str(e))
@@ -266,6 +361,11 @@ def fetch_timetable(req: FetchTimetableRequest):
             "count": len(tables),
             "page_title": _extract_page_title(resp.text),
         }
+    except HTTPException:
+        raise
+    except (requests.ConnectionError, requests.Timeout) as e:
+        logger.error(f"Cannot reach ERP server: {e}")
+        raise HTTPException(status_code=503, detail="University ERP server is currently unreachable. Please check your internet connection or try again later.")
     except Exception as e:
         logger.exception("Error fetching timetable")
         raise HTTPException(status_code=500, detail=str(e))
@@ -325,6 +425,9 @@ def fetch_raw(req: FetchDataRequest):
         }
     except HTTPException:
         raise
+    except (requests.ConnectionError, requests.Timeout) as e:
+        logger.error(f"Cannot reach ERP server: {e}")
+        raise HTTPException(status_code=503, detail="University ERP server is currently unreachable. Please check your internet connection or try again later.")
     except Exception as e:
         logger.exception("Error fetching raw data")
         raise HTTPException(status_code=500, detail=str(e))

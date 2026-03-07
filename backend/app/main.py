@@ -79,12 +79,22 @@ def create_app() -> FastAPI:
     from app.schedules.routes import router as schedule_router
     from app.groups.routes import router as group_router
     from app.meetings.routes import router as meetings_router
+    from app.bugs.routes import router as bugs_router
+    from fastapi.responses import FileResponse
+    import os
 
     app.include_router(auth_router)
     app.include_router(erp_router)
     app.include_router(schedule_router)
     app.include_router(group_router)
     app.include_router(meetings_router)
+    app.include_router(bugs_router)
+
+    @app.get("/dev")
+    def dev_dashboard():
+        """Serve the standalone dev dashboard HTML."""
+        html_path = os.path.join(os.path.dirname(__file__), "bugs", "dashboard.html")
+        return FileResponse(html_path)
 
     @app.get("/health")
     def health():

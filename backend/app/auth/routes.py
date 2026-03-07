@@ -108,8 +108,16 @@ def login(request: Request, req: LoginRequest, db: Session = Depends(get_db)):
         LOGIN_ATTEMPTS[ip] = {"count": 1, "reset_at": now + 60}
 
     user = db.query(User).filter(User.username == req.username.strip().lower()).first()
-    if not user or not verify_password(req.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
+    
+    # 1. Check if user exists
+    if not user:
+        # If rate limit isn't hit, we can pop the attempt, but wait... 
+        # let's just raise the clear error they requested.
+        raise HTTPException(status_code=404, detail="Username does not exist. Please check your spelling or register.")
+
+    # 2. Verify password
+    if not verify_password(req.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid password for this account.")
 
     # Clear rate limit on success
     LOGIN_ATTEMPTS.pop(ip, None)
