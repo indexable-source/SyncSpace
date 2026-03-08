@@ -335,12 +335,8 @@ export default function GroupDetailsPage({ params }) {
                         Actions
                     </h3>
 
-                    <button className="btn btn-primary" onClick={() => router.push(`/groups/${id}/schedule`)} style={{ width: '100%', padding: '1rem' }}>
-                        SCHEDULE NEW MEETING
-                    </button>
-
-                    <button className="btn btn-outline" onClick={() => router.push(`/groups/${id}/sync`)} style={{ width: '100%' }}>
-                        SYNC FREE SLOTS
+                    <button className="btn btn-primary" onClick={() => router.push(`/groups/${id}/sync`)} style={{ width: '100%', padding: '1rem' }}>
+                        SCHEDULE MEETING
                     </button>
 
                     <div style={{ borderTop: 'var(--border-width) solid var(--border-color)', margin: '1rem 0' }}></div>
