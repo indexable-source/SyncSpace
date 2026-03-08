@@ -76,6 +76,17 @@ export default function HomePage() {
     return y;
   };
 
+  // Calculate class hours and free hours per week
+  const totalClassMinutes = schedule.reduce((sum, entry) => {
+    const [sh, sm] = (entry.start_time || '0:0').split(':').map(Number);
+    const [eh, em] = (entry.end_time || '0:0').split(':').map(Number);
+    return sum + ((eh * 60 + em) - (sh * 60 + sm));
+  }, 0);
+  const classHours = (totalClassMinutes / 60).toFixed(1);
+  // Academic week: Mon-Sat, 08:10-16:00 = 7h50m * 6 = 47h = 2820 min
+  const totalWeekMinutes = 6 * (7 * 60 + 50);
+  const freeHours = ((totalWeekMinutes - totalClassMinutes) / 60).toFixed(1);
+
   const totalHeight = SEGMENTS.reduce((sum, seg) => sum + segHeight(seg), 0);
 
   return (
@@ -91,6 +102,16 @@ export default function HomePage() {
             <p className="font-mono text-muted" style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>
               {schedule.length} classes synced
             </p>
+            {schedule.length > 0 && (
+              <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem' }}>
+                <span className="font-mono text-muted" style={{ fontSize: '0.7rem' }}>
+                  {classHours}h classes
+                </span>
+                <span className="font-mono text-muted" style={{ fontSize: '0.7rem' }}>
+                  {freeHours}h free
+                </span>
+              </div>
+            )}
           </div>
           <div style={{ position: 'relative', width: '160px', height: '160px' }}>
             <img

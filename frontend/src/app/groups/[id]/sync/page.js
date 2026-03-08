@@ -23,9 +23,9 @@ const SEGMENTS = [
 ];
 
 const segHeight = (seg) => {
-    if (seg.type === 'break') return 20;
-    if (seg.type === 'lunch') return 36;
-    return 75; // all class periods are ~50 min
+    if (seg.type === 'break') return 14;
+    if (seg.type === 'lunch') return 24;
+    return 52; // compact periods for better viewport fit
 };
 
 export default function GroupSyncPage({ params }) {
@@ -64,13 +64,18 @@ export default function GroupSyncPage({ params }) {
 
         setIsScheduling(true);
         try {
-            await api.createSlot(
+            // Get all member IDs from sync data for the meeting
+            const participantIds = (syncData.members || []).map(m => m.id);
+
+            await api.createMeeting(
                 id,
                 slotForm.title,
                 slotForm.description,
                 selectedSlot.day_of_week,
                 selectedSlot.start_time,
-                selectedSlot.end_time
+                selectedSlot.end_time,
+                participantIds,
+                false
             );
             router.push(`/groups/${id}`);
         } catch (err) {

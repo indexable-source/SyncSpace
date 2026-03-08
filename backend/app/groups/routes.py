@@ -208,12 +208,19 @@ def sync_group_schedules(
             if len(schedules) == 0:
                 members_missing_schedule.append(user.username)
 
-    # ALL members must have schedules for sync to work correctly
+    # ALL members must have schedules, and at least 2 members needed for sync
     if members_missing_schedule:
         missing_list = ", ".join(f"@{u}" for u in members_missing_schedule)
         raise HTTPException(
             status_code=400,
             detail=f"All members must import a timetable before syncing. Missing: {missing_list}"
+        )
+
+    members_with_schedules = len(members_info) - len(members_missing_schedule)
+    if members_with_schedules < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="At least 2 group members with imported timetables are required to sync schedules."
         )
 
     free_slots = find_common_free_slots(user_schedules)
