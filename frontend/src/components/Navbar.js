@@ -18,6 +18,7 @@ export default function Navbar() {
         { name: 'Dashboard', path: '/' },
         { name: 'Import', path: '/upload' },
         { name: 'Groups', path: '/groups' },
+        { name: 'Meetings', path: '/meetings' },
     ];
 
     return (

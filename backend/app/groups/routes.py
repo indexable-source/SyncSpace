@@ -196,7 +196,7 @@ def sync_group_schedules(
         user = db.query(User).filter(User.id == m.user_id).first()
         schedules = db.query(Schedule).filter(Schedule.user_id == m.user_id).all()
         user_schedules[m.user_id] = [
-            {"day_of_week": s.day_of_week, "start_time": s.start_time, "end_time": s.end_time}
+            {"day_of_week": s.day_of_week, "start_time": s.start_time, "end_time": s.end_time, "subject": s.subject}
             for s in schedules
         ]
         if user:

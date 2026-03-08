@@ -365,6 +365,70 @@ export default function HomePage() {
                   </div>
                 );
               })}
+
+              {/* Meeting blocks overlaid on timetable */}
+              {meetings.map((m) => {
+                const startMin = timeToMin(m.start_time);
+                const endMin = timeToMin(m.end_time);
+                const top = minToY(startMin);
+                const bottom = minToY(endMin);
+                const height = Math.max(bottom - top - 2, 18);
+                const dayIdx = m.day_of_week;
+
+                return (
+                  <Link
+                    key={`meeting-${m.id}`}
+                    href={`/groups/${m.group_invite_code}`}
+                    style={{ textDecoration: 'none' }}
+                  >
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: `${top + 1}px`,
+                        height: `${height}px`,
+                        left: `calc(${dayIdx} * (100% / 6) + 3px)`,
+                        width: `calc(100% / 6 - 6px)`,
+                        background: 'var(--accent-primary)',
+                        border: '2px solid var(--accent-primary)',
+                        color: 'var(--bg-base)',
+                        borderRadius: 'var(--radius-sm)',
+                        padding: '0.3rem 0.4rem',
+                        fontSize: '0.75rem',
+                        fontFamily: 'var(--font-jetbrains-mono), monospace',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        pointerEvents: 'auto',
+                        zIndex: 15,
+                        cursor: 'pointer',
+                        transition: 'opacity 0.15s',
+                        opacity: 0.9,
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                      onMouseLeave={e => e.currentTarget.style.opacity = '0.9'}
+                    >
+                      <div style={{
+                        fontSize: '0.55rem', textTransform: 'uppercase',
+                        letterSpacing: '0.08em', opacity: 0.85, marginBottom: '1px',
+                      }}>
+                        MEETING
+                      </div>
+                      <div style={{
+                        fontWeight: 'bold', whiteSpace: 'nowrap',
+                        textOverflow: 'ellipsis', overflow: 'hidden', fontSize: '0.75rem',
+                      }}>
+                        {m.title}
+                      </div>
+                      <div style={{
+                        marginTop: 'auto', fontSize: '0.6rem',
+                        letterSpacing: '0.05em', opacity: 0.85,
+                      }}>
+                        {m.start_time} – {m.end_time}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </div>
         )}

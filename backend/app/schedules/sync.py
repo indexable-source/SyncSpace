@@ -15,6 +15,50 @@ def minutes_to_time(m: int) -> str:
     return f"{m // 60:02d}:{m % 60:02d}"
 
 
+def _merge_same_subject_across_breaks(entries: list[dict], max_break_minutes: int = 15) -> list[dict]:
+    """
+    Merge adjacent schedule entries of the same subject on the same day
+    if they are separated by a gap of <= max_break_minutes.
+    
+    Example: If user has "DSA" 09:00-09:50 and "DSA" 10:00-10:50 with
+    a 10-min break between them, merge into "DSA" 09:00-10:50.
+    This makes the break "busy" so it won't be schedulable.
+    """
+    if not entries:
+        return entries
+
+    # Group by day
+    by_day: dict[int, list[dict]] = {}
+    for e in entries:
+        by_day.setdefault(e["day_of_week"], []).append(e)
+
+    result = []
+    for day, day_entries in by_day.items():
+        # Sort by start time
+        sorted_entries = sorted(day_entries, key=lambda e: time_to_minutes(e["start_time"]))
+        merged = [sorted_entries[0].copy()]
+
+        for entry in sorted_entries[1:]:
+            prev = merged[-1]
+            prev_end = time_to_minutes(prev["end_time"])
+            curr_start = time_to_minutes(entry["start_time"])
+            gap = curr_start - prev_end
+
+            # Merge if same subject and gap <= max_break_minutes
+            prev_subj = (prev.get("subject") or "").strip().lower()
+            curr_subj = (entry.get("subject") or "").strip().lower()
+
+            if prev_subj and curr_subj and prev_subj == curr_subj and 0 <= gap <= max_break_minutes:
+                # Extend the previous entry to cover through this one
+                prev["end_time"] = entry["end_time"]
+            else:
+                merged.append(entry.copy())
+
+        result.extend(merged)
+
+    return result
+
+
 def find_common_free_slots(
     user_schedules: dict[int, list[dict]],
     day_start: str = "08:00",
@@ -25,9 +69,9 @@ def find_common_free_slots(
     Find common free time slots across all users.
     
     Args:
-        user_schedules: {user_id: [{day_of_week, start_time, end_time, ...}]}
+        user_schedules: {user_id: [{day_of_week, start_time, end_time, subject, ...}]}
         day_start: earliest time to consider (default 8 AM)
-        day_end: latest time to consider (default 6 PM)
+        day_end: latest time to consider (default 4 PM)
         min_duration_minutes: minimum free slot duration
     
     Returns:
@@ -36,6 +80,11 @@ def find_common_free_slots(
     if not user_schedules:
         return []
 
+    # Preprocess: merge same-subject entries across short breaks for each user
+    processed_schedules = {}
+    for user_id, schedule in user_schedules.items():
+        processed_schedules[user_id] = _merge_same_subject_across_breaks(schedule)
+
     start_min = time_to_minutes(day_start)
     end_min = time_to_minutes(day_end)
     free_slots = []
@@ -43,7 +92,7 @@ def find_common_free_slots(
     for day in range(6):  # Mon-Sat
         # Collect all busy intervals for this day across all users
         busy_intervals = []
-        for user_id, schedule in user_schedules.items():
+        for user_id, schedule in processed_schedules.items():
             for entry in schedule:
                 if entry["day_of_week"] == day:
                     s = time_to_minutes(entry["start_time"])

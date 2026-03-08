@@ -174,11 +174,14 @@ export default function GroupSyncPage({ params }) {
         };
     };
 
+    // Only show periods and lunch in the grid (hide short breaks)
+    const VISIBLE_SEGMENTS = SEGMENTS.filter(s => s.type !== 'break');
+
     return (
         <div className="animate-fade-in" style={{ height: 'calc(100vh - 8rem)', display: 'flex', flexDirection: 'column', maxWidth: '1200px', margin: '0 auto' }}>
 
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', borderBottom: 'var(--border-width) solid var(--border-color)', paddingBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', borderBottom: 'var(--border-width) solid var(--border-color)', paddingBottom: '1rem' }}>
                 <div>
                     <button
                         onClick={() => router.push(`/groups/${id}`)}
@@ -190,7 +193,7 @@ export default function GroupSyncPage({ params }) {
                             fontSize: '0.75rem',
                             cursor: 'pointer',
                             padding: '0',
-                            marginBottom: '1rem',
+                            marginBottom: '0.75rem',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '0.5rem',
@@ -205,162 +208,174 @@ export default function GroupSyncPage({ params }) {
                     <p className="font-mono text-muted" style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>
                         Found {validSlots.length} available slots across {(syncData.members || []).length} members.
                     </p>
+                    <p className="font-mono text-muted" style={{ fontSize: '0.7rem', marginTop: '0.25rem', opacity: 0.7 }}>
+                        Click an available slot to book a session.
+                    </p>
                 </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '2rem', flex: 1, minHeight: 0 }}>
-
-                {/* Left: The Visual Grid */}
+            {/* Full-width Grid */}
+            <div style={{
+                flex: 1,
+                overflow: 'auto',
+                border: 'var(--border-width) solid var(--border-color)',
+                background: 'var(--bg-base)'
+            }}>
                 <div style={{
-                    flex: 2,
-                    overflow: 'auto',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    border: 'var(--border-width) solid var(--border-color)',
-                    background: 'var(--bg-base)'
+                    display: 'grid',
+                    gridTemplateColumns: '50px repeat(6, 1fr)',
+                    gridTemplateRows: `36px ${SEGMENTS.reduce((sum, s) => sum + segHeight(s), 0)}px`,
+                    minWidth: '700px',
+                    position: 'relative'
                 }}>
-                    <div style={{ overflow: 'auto', flex: 1 }} className="custom-scrollbar">
-                        <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: '60px repeat(6, minmax(120px, 1fr))',
-                            gridTemplateRows: `40px ${SEGMENTS.reduce((sum, s) => sum + segHeight(s), 0)}px`,
-                            minWidth: '800px',
-                            position: 'relative'
-                        }}>
 
-                            {/* Background Grid Lines for Segments */}
-                            <div style={{ gridColumn: '2 / span 6', gridRow: 2, position: 'relative' }}>
-                                {SEGMENTS.map((seg, idx) => {
-                                    const y = minToY(seg.minStart);
-                                    const h = segHeight(seg);
-                                    return (
-                                        <div key={`bg-${idx}`} style={{
-                                            position: 'absolute',
-                                            top: y,
-                                            left: 0,
-                                            right: 0,
-                                            height: h,
-                                            borderBottom: 'var(--border-width) solid var(--border-light)',
-                                            background: seg.type === 'break' || seg.type === 'lunch' ? 'var(--bg-hover)' : 'transparent',
-                                            zIndex: 1
-                                        }} />
-                                    );
-                                })}
-                            </div>
-                            {Array.from({ length: 6 }).map((_, idx) => (
-                                <div key={`col-${idx}`} style={{
-                                    gridColumn: idx + 2,
-                                    gridRow: '1 / span 23',
-                                    borderRight: 'var(--border-width) solid var(--border-color)',
+                    {/* Background Grid Lines for Segments */}
+                    <div style={{ gridColumn: '2 / span 6', gridRow: 2, position: 'relative' }}>
+                        {SEGMENTS.map((seg, idx) => {
+                            const y = minToY(seg.minStart);
+                            const h = segHeight(seg);
+                            return (
+                                <div key={`bg-${idx}`} style={{
+                                    position: 'absolute',
+                                    top: y,
+                                    left: 0,
+                                    right: 0,
+                                    height: h,
+                                    borderBottom: seg.type !== 'break' ? 'var(--border-width) solid var(--border-light)' : 'none',
+                                    background: seg.type === 'lunch' ? 'var(--bg-hover)' : 'transparent',
+                                    zIndex: 1
                                 }} />
-                            ))}
-
-                            <div style={{ gridColumn: 1, gridRow: 1, background: 'var(--bg-base)', borderBottom: 'var(--border-width) solid var(--border-color)', borderRight: 'var(--border-width) solid var(--border-color)', zIndex: 5, position: 'sticky', top: 0, left: 0 }}></div>
-
-                            {/* Day Headers */}
-                            {DAYS.map((day, idx) => (
-                                <div key={day} className="font-mono" style={{
-                                    gridColumn: idx + 2,
-                                    gridRow: 1,
-                                    background: 'var(--bg-base)',
-                                    padding: '0.75rem',
-                                    fontWeight: 'bold',
-                                    textAlign: 'center',
-                                    fontSize: '0.8rem',
-                                    borderBottom: 'var(--border-width) solid var(--border-color)',
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.05em',
-                                    zIndex: 4,
-                                    position: 'sticky',
-                                    top: 0
-                                }}>
-                                    {day}
-                                </div>
-                            ))}
-
-                            {/* Y-Axis: Segments */}
-                            <div style={{ gridColumn: 1, gridRow: 2, position: 'relative', borderRight: 'var(--border-width) solid var(--border-color)' }}>
-                                {SEGMENTS.map((seg, idx) => {
-                                    const y = minToY(seg.minStart);
-                                    const h = segHeight(seg);
-                                    return (
-                                        <div key={`seg-${idx}`} style={{
-                                            position: 'absolute',
-                                            top: y,
-                                            left: 0,
-                                            right: 0,
-                                            height: h,
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            justifyContent: 'center',
-                                            alignItems: 'center',
-                                            borderBottom: 'var(--border-width) solid var(--border-light)',
-                                            background: seg.type === 'break' || seg.type === 'lunch' ? 'var(--bg-hover)' : 'var(--bg-base)'
-                                        }}>
-                                            <span className="font-serif" style={{ fontSize: '0.85rem' }}>{seg.label}</span>
-                                            {seg.type === 'period' && (
-                                                <span className="font-mono text-muted" style={{ fontSize: '0.55rem' }}>{seg.time.split(' ')[0]}</span>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Free Slots — rendered per-day-column with relative positioning */}
-                            {DAYS.map((_, dayIdx) => {
-                                const daySlots = validSlots.filter(s => s.day_of_week === dayIdx);
-                                if (daySlots.length === 0) return null;
-                                return (
-                                    <div key={`slots-day-${dayIdx}`} style={{ gridColumn: dayIdx + 2, gridRow: 2, position: 'relative', zIndex: 10 }}>
-                                        {daySlots.map((slot, idx) => (
-                                            <div
-                                                key={`slot-${dayIdx}-${idx}`}
-                                                style={getGridStyle(slot)}
-                                                onClick={() => setSelectedSlot(slot)}
-                                                onMouseEnter={(e) => {
-                                                    if (!selectedSlot || (selectedSlot.day_of_week !== slot.day_of_week || selectedSlot.start_time !== slot.start_time)) {
-                                                        e.currentTarget.style.background = 'var(--accent-primary)';
-                                                        e.currentTarget.style.color = 'var(--bg-base)';
-                                                        e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                                                    }
-                                                }}
-                                                onMouseLeave={(e) => {
-                                                    if (!selectedSlot || (selectedSlot.day_of_week !== slot.day_of_week || selectedSlot.start_time !== slot.start_time)) {
-                                                        e.currentTarget.style.background = 'var(--color-free)';
-                                                        e.currentTarget.style.color = 'var(--color-free-text)';
-                                                        e.currentTarget.style.borderColor = 'var(--color-free-border)';
-                                                    }
-                                                }}
-                                            >
-                                                <div style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>AVAILABLE</div>
-                                                <div style={{ opacity: 0.9, fontSize: '0.65rem' }}>{slot.start_time} - {slot.end_time}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                );
-                            })}
-                        </div>
+                            );
+                        })}
                     </div>
+                    {Array.from({ length: 6 }).map((_, idx) => (
+                        <div key={`col-${idx}`} style={{
+                            gridColumn: idx + 2,
+                            gridRow: '1 / span 23',
+                            borderRight: 'var(--border-width) solid var(--border-color)',
+                        }} />
+                    ))}
+
+                    <div style={{ gridColumn: 1, gridRow: 1, background: 'var(--bg-base)', borderBottom: 'var(--border-width) solid var(--border-color)', borderRight: 'var(--border-width) solid var(--border-color)', zIndex: 5, position: 'sticky', top: 0, left: 0 }}></div>
+
+                    {/* Day Headers */}
+                    {DAYS.map((day, idx) => (
+                        <div key={day} className="font-mono" style={{
+                            gridColumn: idx + 2,
+                            gridRow: 1,
+                            background: 'var(--bg-base)',
+                            padding: '0.5rem',
+                            fontWeight: 'bold',
+                            textAlign: 'center',
+                            fontSize: '0.75rem',
+                            borderBottom: 'var(--border-width) solid var(--border-color)',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                            zIndex: 4,
+                            position: 'sticky',
+                            top: 0
+                        }}>
+                            {day.slice(0, 3)}
+                        </div>
+                    ))}
+
+                    {/* Y-Axis: Only visible segments (no breaks) */}
+                    <div style={{ gridColumn: 1, gridRow: 2, position: 'relative', borderRight: 'var(--border-width) solid var(--border-color)' }}>
+                        {VISIBLE_SEGMENTS.map((seg, idx) => {
+                            const y = minToY(seg.minStart);
+                            const h = segHeight(seg);
+                            return (
+                                <div key={`seg-${idx}`} style={{
+                                    position: 'absolute',
+                                    top: y,
+                                    left: 0,
+                                    right: 0,
+                                    height: h,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                    background: seg.type === 'lunch' ? 'var(--bg-hover)' : 'var(--bg-base)'
+                                }}>
+                                    <span className="font-serif" style={{ fontSize: '0.75rem' }}>{seg.label}</span>
+                                    <span className="font-mono text-muted" style={{ fontSize: '0.5rem' }}>{seg.time.split(' ')[0]}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Free Slots */}
+                    {DAYS.map((_, dayIdx) => {
+                        const daySlots = validSlots.filter(s => s.day_of_week === dayIdx);
+                        if (daySlots.length === 0) return null;
+                        return (
+                            <div key={`slots-day-${dayIdx}`} style={{ gridColumn: dayIdx + 2, gridRow: 2, position: 'relative', zIndex: 10 }}>
+                                {daySlots.map((slot, idx) => (
+                                    <div
+                                        key={`slot-${dayIdx}-${idx}`}
+                                        style={getGridStyle(slot)}
+                                        onClick={() => setSelectedSlot(slot)}
+                                        onMouseEnter={(e) => {
+                                            if (!selectedSlot || (selectedSlot.day_of_week !== slot.day_of_week || selectedSlot.start_time !== slot.start_time)) {
+                                                e.currentTarget.style.background = 'var(--accent-primary)';
+                                                e.currentTarget.style.color = 'var(--bg-base)';
+                                                e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                                            }
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            if (!selectedSlot || (selectedSlot.day_of_week !== slot.day_of_week || selectedSlot.start_time !== slot.start_time)) {
+                                                e.currentTarget.style.background = 'var(--color-free)';
+                                                e.currentTarget.style.color = 'var(--color-free-text)';
+                                                e.currentTarget.style.borderColor = 'var(--color-free-border)';
+                                            }
+                                        }}
+                                    >
+                                        <div style={{ fontSize: '0.65rem', fontWeight: 'bold' }}>AVAILABLE</div>
+                                        <div style={{ opacity: 0.9, fontSize: '0.55rem' }}>{slot.start_time} - {slot.end_time}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    })}
                 </div>
+            </div>
 
-                {/* Right: Booking Panel */}
-                <div style={{ width: '380px', display: 'flex', flexDirection: 'column' }}>
+            {/* Booking Modal */}
+            {selectedSlot && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: 0, left: 0, right: 0, bottom: 0,
+                        background: 'rgba(0,0,0,0.6)',
+                        backdropFilter: 'blur(4px)',
+                        zIndex: 1000,
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center'
+                    }}
+                    onClick={(e) => { if (e.target === e.currentTarget) setSelectedSlot(null); }}
+                >
+                    <div className="animate-fade-in" style={{
+                        background: 'var(--bg-base)',
+                        border: 'var(--border-width) solid var(--border-color)',
+                        padding: '2rem',
+                        width: '100%',
+                        maxWidth: '440px',
+                        borderRadius: 'var(--radius-sm)'
+                    }}>
+                        <form onSubmit={handleScheduleSlot} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                            <h3 className="font-serif" style={{ margin: 0, fontSize: '1.5rem' }}>Book Session.</h3>
 
-                    <h3 className="font-serif" style={{ marginBottom: '1.5rem', fontSize: '1.5rem' }}>Book Session.</h3>
-
-                    {selectedSlot ? (
-                        <form onSubmit={handleScheduleSlot} className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                             <div style={{
                                 background: 'var(--bg-elevated)',
-                                padding: '1.5rem',
+                                padding: '1rem',
                                 border: 'var(--border-width) solid var(--text-primary)',
-                                borderRadius: '0'
                             }}>
-                                <div className="font-mono text-muted" style={{ fontSize: '0.7rem', textTransform: 'uppercase', marginBottom: '0.5rem' }}>SELECTED TIME</div>
-                                <div className="font-serif" style={{ fontSize: '1.5rem', color: 'var(--text-primary)', marginBottom: '0.2rem' }}>
+                                <div className="font-mono text-muted" style={{ fontSize: '0.65rem', textTransform: 'uppercase', marginBottom: '0.4rem' }}>SELECTED TIME</div>
+                                <div className="font-serif" style={{ fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '0.2rem' }}>
                                     {DAYS[selectedSlot.day_of_week]}.
                                 </div>
-                                <div className="font-mono" style={{ fontSize: '0.9rem' }}>
+                                <div className="font-mono" style={{ fontSize: '0.85rem' }}>
                                     {selectedSlot.start_time} — {selectedSlot.end_time}
                                 </div>
                             </div>
@@ -374,7 +389,7 @@ export default function GroupSyncPage({ params }) {
                                 <label className="input-label" style={{ fontSize: '0.7rem' }}>DESCRIPTION / AGENDA</label>
                                 <textarea
                                     className="input-field"
-                                    rows={4}
+                                    rows={3}
                                     style={{ resize: 'vertical' }}
                                     placeholder="Briefly describe what this session is for..."
                                     value={slotForm.description}
@@ -382,36 +397,18 @@ export default function GroupSyncPage({ params }) {
                                 />
                             </div>
 
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: 'auto' }}>
-                                <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={isScheduling}>
-                                    {isScheduling ? 'SCHEDULING...' : 'CONFIRM SESSION'}
-                                </button>
-
-                                <button type="button" className="btn btn-outline" style={{ width: '100%' }} onClick={() => setSelectedSlot(null)}>
+                            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                                <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={() => setSelectedSlot(null)}>
                                     CANCEL
+                                </button>
+                                <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={isScheduling}>
+                                    {isScheduling ? 'BOOKING...' : 'CONFIRM'}
                                 </button>
                             </div>
                         </form>
-                    ) : (
-                        <div style={{
-                            textAlign: 'center',
-                            padding: '4rem 2rem',
-                            border: 'var(--border-width) dashed var(--border-color)',
-                            background: 'var(--bg-base)',
-                            flex: 1,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            justifyContent: 'center',
-                            alignItems: 'center'
-                        }}>
-                            <div className="font-mono" style={{ fontSize: '2rem', marginBottom: '1rem' }}>+</div>
-                            <p className="font-mono text-muted" style={{ fontSize: '0.85rem', lineHeight: 1.6 }}>
-                                Click on any available slot on the calendar grid to block out a collaborative session for your group.
-                            </p>
-                        </div>
-                    )}
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 }
