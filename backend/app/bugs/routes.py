@@ -22,7 +22,6 @@ class SubmitBugRequest(BaseModel):
     severity: str = "medium"
     page_url: Optional[str] = None
     user_agent: Optional[str] = None
-    user_agent: Optional[str] = None
     image_data: Optional[list[str]] = None
 
 
@@ -55,7 +54,7 @@ def submit_bug(
         severity=severity,
         page_url=(req.page_url or "")[:512] or None,
         user_agent=user_agent[:512] or None,
-        image_data=json.dumps(req.image_data[:5]) if req.image_data else None,
+        image_data=json.dumps(req.image_data) if req.image_data else None,
     )
     db.add(bug)
     db.commit()

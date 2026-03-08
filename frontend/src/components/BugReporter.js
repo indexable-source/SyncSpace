@@ -16,7 +16,6 @@ export default function BugReporter() {
         title: '',
         description: '',
         severity: 'medium',
-        severity: 'medium',
         images: []
     });
 

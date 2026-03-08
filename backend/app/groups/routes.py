@@ -190,6 +190,7 @@ def sync_group_schedules(
     members = db.query(GroupMember).filter(GroupMember.group_id == group.id).all()
     user_schedules = {}
     members_info = []
+    members_missing_schedule = []
 
     for m in members:
         user = db.query(User).filter(User.id == m.user_id).first()
@@ -204,6 +205,16 @@ def sync_group_schedules(
                 "username": user.username,
                 "schedule_count": len(schedules),
             })
+            if len(schedules) == 0:
+                members_missing_schedule.append(user.username)
+
+    # ALL members must have schedules for sync to work correctly
+    if members_missing_schedule:
+        missing_list = ", ".join(f"@{u}" for u in members_missing_schedule)
+        raise HTTPException(
+            status_code=400,
+            detail=f"All members must import a timetable before syncing. Missing: {missing_list}"
+        )
 
     free_slots = find_common_free_slots(user_schedules)
 

@@ -18,7 +18,7 @@ def minutes_to_time(m: int) -> str:
 def find_common_free_slots(
     user_schedules: dict[int, list[dict]],
     day_start: str = "08:00",
-    day_end: str = "18:00",
+    day_end: str = "16:00",
     min_duration_minutes: int = 30,
 ) -> list[dict]:
     """

@@ -46,8 +46,8 @@ export default function GroupSyncPage({ params }) {
                 const data = await api.syncGroupSchedules(id);
                 setSyncData(data);
             } catch (err) {
-                if (err.status === 400 && err.message.toLowerCase().includes("import")) {
-                    setError("MISSING_SCHEDULE");
+                if (err.status === 400 && (err.message.toLowerCase().includes("import") || err.message.toLowerCase().includes("timetable"))) {
+                    setError(err.message);
                 } else {
                     setError(err.message || 'Failed to sync schedules');
                 }
@@ -88,28 +88,18 @@ export default function GroupSyncPage({ params }) {
         </div>
     );
 
-    if (error === "MISSING_SCHEDULE") return (
-        <div style={{ maxWidth: '600px', margin: '4rem auto', textAlign: 'center' }}>
-            <h3 className="font-serif" style={{ fontSize: '2rem', marginBottom: '1rem' }}>Schedule Required.</h3>
-            <p className="font-mono text-muted" style={{ marginBottom: '2rem' }}>You must import a timetable via the Dashboard first to use sync and scheduling features.</p>
-            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-                <button className="btn btn-outline" onClick={() => router.push(`/groups/${id}`)}>
-                    ← BACK TO GROUP
-                </button>
-                <button className="btn btn-primary" onClick={() => router.push('/upload')}>
-                    IMPORT TIMETABLE →
-                </button>
-            </div>
-        </div>
-    );
-
     if (error) return (
         <div style={{ maxWidth: '600px', margin: '4rem auto', textAlign: 'center' }}>
-            <h3 className="font-serif" style={{ color: 'var(--accent-primary)', fontSize: '2rem', marginBottom: '1rem' }}>Sync Failed.</h3>
+            <h3 className="font-serif" style={{ fontSize: '2rem', marginBottom: '1rem' }}>Schedule Required.</h3>
             <p className="font-mono text-muted" style={{ marginBottom: '2rem' }}>{error}</p>
-            <button className="btn btn-outline" onClick={() => router.push(`/groups/${id}`)}>
-                ← RETURN TO GROUP
-            </button>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                <button className="btn btn-outline" onClick={() => router.push(`/groups/${id}`)}>
+                    BACK TO GROUP
+                </button>
+                <button className="btn btn-primary" onClick={() => router.push('/upload')}>
+                    IMPORT TIMETABLE
+                </button>
+            </div>
         </div>
     );
 
@@ -119,13 +109,18 @@ export default function GroupSyncPage({ params }) {
         return (h - 8) * 60 + m;
     };
 
+    // Clamp minutes to valid SEGMENTS range (08:10 = min 10, 16:00 = min 480)
+    const GRID_MIN_START = 10;  // 08:10
+    const GRID_MIN_END = 480;   // 16:00
+
     const minToY = (min) => {
         let y = 0;
+        const clampedMin = Math.max(GRID_MIN_START, Math.min(GRID_MIN_END, min));
         for (const seg of SEGMENTS) {
             const h = segHeight(seg);
-            if (min <= seg.minStart) return y;
-            if (min <= seg.minEnd) {
-                const frac = (min - seg.minStart) / (seg.minEnd - seg.minStart);
+            if (clampedMin <= seg.minStart) return y;
+            if (clampedMin <= seg.minEnd) {
+                const frac = (clampedMin - seg.minStart) / (seg.minEnd - seg.minStart);
                 return y + frac * h;
             }
             y += h;
@@ -133,31 +128,34 @@ export default function GroupSyncPage({ params }) {
         return y;
     };
 
-    const getGridStyle = (slot) => {
+    // Filter free slots to only those within the grid window
+    const validSlots = (syncData.free_slots || []).filter(slot => {
         const startMin = timeToMin(slot.start_time);
         const endMin = timeToMin(slot.end_time);
+        return endMin > GRID_MIN_START && startMin < GRID_MIN_END;
+    });
+
+    const getGridStyle = (slot) => {
+        const startMin = Math.max(timeToMin(slot.start_time), GRID_MIN_START);
+        const endMin = Math.min(timeToMin(slot.end_time), GRID_MIN_END);
 
         const top = minToY(startMin);
         const bottom = minToY(endMin);
-        const height = bottom - top;
-
-        const colStart = slot.day_of_week + 2;
+        const height = Math.max(bottom - top, 4);
 
         const isSelected = selectedSlot &&
             selectedSlot.day_of_week === slot.day_of_week &&
             selectedSlot.start_time === slot.start_time;
 
         return {
-            gridColumn: colStart,
-            gridRow: '2 / span 12', // Span the whole content area, we use position absolute inside it
             position: 'absolute',
             top: `${top}px`,
             height: `${height}px`,
-            left: 0,
-            right: 0,
-            background: isSelected ? 'var(--text-primary)' : 'var(--accent-success)',
-            border: `var(--border-width) solid ${isSelected ? 'var(--text-primary)' : 'rgba(0,0,0,0.2)'}`,
-            color: isSelected ? 'var(--bg-base)' : 'var(--bg-base)',
+            left: '2px',
+            right: '2px',
+            background: isSelected ? 'var(--accent-primary)' : 'var(--color-free)',
+            border: `1px solid ${isSelected ? 'var(--accent-primary)' : 'var(--color-free-border)'}`,
+            color: isSelected ? 'var(--bg-base)' : 'var(--color-free-text)',
             padding: '0.25rem',
             borderRadius: 'var(--radius-sm)',
             cursor: 'pointer',
@@ -167,7 +165,6 @@ export default function GroupSyncPage({ params }) {
             flexDirection: 'column',
             justifyContent: 'center',
             alignItems: 'center',
-            opacity: 0.9,
             overflow: 'hidden'
         };
     };
@@ -201,7 +198,7 @@ export default function GroupSyncPage({ params }) {
                     </button>
                     <h1 className="font-serif" style={{ margin: 0, lineHeight: 1 }}>Sync & Schedule.</h1>
                     <p className="font-mono text-muted" style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>
-                        Found {(syncData.free_slots || []).length} available slots across {(syncData.members || []).length} members.
+                        Found {validSlots.length} available slots across {(syncData.members || []).length} members.
                     </p>
                 </div>
             </div>
@@ -211,7 +208,7 @@ export default function GroupSyncPage({ params }) {
                 {/* Left: The Visual Grid */}
                 <div style={{
                     flex: 2,
-                    overflow: 'hidden',
+                    overflow: 'auto',
                     display: 'flex',
                     flexDirection: 'column',
                     border: 'var(--border-width) solid var(--border-color)',
@@ -304,31 +301,39 @@ export default function GroupSyncPage({ params }) {
                                 })}
                             </div>
 
-                            {/* Free Slots */}
-                            {(syncData.free_slots || []).map((slot, idx) => (
-                                <div key={`col-wrap-${idx}`} style={{ gridColumn: slot.day_of_week + 2, gridRow: 2, position: 'relative', zIndex: 10 }}>
-                                    <div
-                                        key={idx}
-                                        style={getGridStyle(slot)}
-                                        onClick={() => setSelectedSlot(slot)}
-                                        onMouseEnter={(e) => {
-                                            if (!selectedSlot || (selectedSlot.day_of_week !== slot.day_of_week || selectedSlot.start_time !== slot.start_time)) {
-                                                e.currentTarget.style.background = 'var(--text-primary)';
-                                                e.currentTarget.style.color = 'var(--bg-base)';
-                                            }
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            if (!selectedSlot || (selectedSlot.day_of_week !== slot.day_of_week || selectedSlot.start_time !== slot.start_time)) {
-                                                e.currentTarget.style.background = 'var(--bg-elevated)';
-                                                e.currentTarget.style.color = 'var(--text-primary)';
-                                            }
-                                        }}
-                                    >
-                                        <div style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>AVAILABLE</div>
-                                        <div style={{ opacity: 0.9, fontSize: '0.65rem' }}>{slot.start_time} - {slot.end_time}</div>
+                            {/* Free Slots — rendered per-day-column with relative positioning */}
+                            {DAYS.map((_, dayIdx) => {
+                                const daySlots = validSlots.filter(s => s.day_of_week === dayIdx);
+                                if (daySlots.length === 0) return null;
+                                return (
+                                    <div key={`slots-day-${dayIdx}`} style={{ gridColumn: dayIdx + 2, gridRow: 2, position: 'relative', zIndex: 10 }}>
+                                        {daySlots.map((slot, idx) => (
+                                            <div
+                                                key={`slot-${dayIdx}-${idx}`}
+                                                style={getGridStyle(slot)}
+                                                onClick={() => setSelectedSlot(slot)}
+                                                onMouseEnter={(e) => {
+                                                    if (!selectedSlot || (selectedSlot.day_of_week !== slot.day_of_week || selectedSlot.start_time !== slot.start_time)) {
+                                                        e.currentTarget.style.background = 'var(--accent-primary)';
+                                                        e.currentTarget.style.color = 'var(--bg-base)';
+                                                        e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                                                    }
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    if (!selectedSlot || (selectedSlot.day_of_week !== slot.day_of_week || selectedSlot.start_time !== slot.start_time)) {
+                                                        e.currentTarget.style.background = 'var(--color-free)';
+                                                        e.currentTarget.style.color = 'var(--color-free-text)';
+                                                        e.currentTarget.style.borderColor = 'var(--color-free-border)';
+                                                    }
+                                                }}
+                                            >
+                                                <div style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>AVAILABLE</div>
+                                                <div style={{ opacity: 0.9, fontSize: '0.65rem' }}>{slot.start_time} - {slot.end_time}</div>
+                                            </div>
+                                        ))}
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 </div>

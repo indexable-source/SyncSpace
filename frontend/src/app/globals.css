@@ -304,25 +304,26 @@ h3 {
 
 .btn-primary {
   background-color: var(--accent-primary);
-  color: #fff;
+  color: var(--bg-base);
   border-color: var(--accent-primary);
 }
 
 .btn-primary:hover {
-  background-color: var(--bg-elevated);
+  background-color: transparent;
   color: var(--accent-primary);
   border-color: var(--accent-primary);
 }
 
 .btn-success {
   background-color: var(--accent-success);
-  color: #fff;
+  color: var(--bg-base);
   border-color: var(--accent-success);
 }
 
 .btn-success:hover {
-  background-color: #ffffff;
+  background-color: transparent;
   color: var(--accent-success);
+  border-color: var(--accent-success);
 }
 
 .btn-outline {
