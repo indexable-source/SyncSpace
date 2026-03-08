@@ -11,6 +11,7 @@ from datetime import datetime
 from app.database import get_db
 from app.models import BugReport, User
 from app.auth.utils import get_current_user
+import json
 
 router = APIRouter(prefix="/api/bugs", tags=["Bug Reports"])
 
@@ -21,6 +22,8 @@ class SubmitBugRequest(BaseModel):
     severity: str = "medium"
     page_url: Optional[str] = None
     user_agent: Optional[str] = None
+    user_agent: Optional[str] = None
+    image_data: Optional[list[str]] = None
 
 
 @router.post("")
@@ -52,6 +55,7 @@ def submit_bug(
         severity=severity,
         page_url=(req.page_url or "")[:512] or None,
         user_agent=user_agent[:512] or None,
+        image_data=json.dumps(req.image_data[:5]) if req.image_data else None,
     )
     db.add(bug)
     db.commit()
@@ -75,6 +79,7 @@ def list_bugs(db: Session = Depends(get_db)):
                 "severity": b.severity,
                 "page_url": b.page_url,
                 "user_agent": b.user_agent,
+                "image_data": b.image_data,
                 "reporter": b.reporter.username if b.reporter else "unknown",
                 "created_at": b.created_at.isoformat() if b.created_at else None,
             }

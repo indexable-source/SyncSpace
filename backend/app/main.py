@@ -67,11 +67,18 @@ def create_app() -> FastAPI:
     existing_cols = [c["name"] for c in inspector.get_columns("users")]
     if "erp_roll_number" not in existing_cols:
         with engine.connect() as conn:
-            conn.execute(text(
-                "ALTER TABLE users ADD COLUMN erp_roll_number VARCHAR(20)"
-            ))
+            conn.execute(text("ALTER TABLE users ADD COLUMN erp_roll_number VARCHAR(20)"))
             conn.commit()
         logger.info("Migration: added erp_roll_number column to users table")
+
+    # Auto-migration: add image_data column to bug_reports if missing
+    if sa_inspect(engine).has_table("bug_reports"):
+        existing_bug_cols = [c["name"] for c in inspector.get_columns("bug_reports")]
+        if "image_data" not in existing_bug_cols:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE bug_reports ADD COLUMN image_data TEXT"))
+                conn.commit()
+            logger.info("Migration: added image_data column to bug_reports table")
 
     # Register routers
     from app.auth.routes import router as auth_router

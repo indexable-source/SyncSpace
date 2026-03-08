@@ -108,7 +108,7 @@ export const api = {
 
   // --- Bug Reports ---
 
-  async submitBugReport(title, description, severity, pageUrl) {
+  async submitBugReport(title, description, severity, pageUrl, images = null) {
     return this.request('/bugs', {
       method: 'POST',
       body: JSON.stringify({
@@ -116,7 +116,8 @@ export const api = {
         description,
         severity,
         page_url: pageUrl,
-        user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : ''
+        user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+        image_data: images
       }),
     });
   },

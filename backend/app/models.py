@@ -125,6 +125,7 @@ class BugReport(Base):
     severity = Column(String(20), default="medium")  # low | medium | high | critical
     page_url = Column(String(512), nullable=True)
     user_agent = Column(String(512), nullable=True)
+    image_data = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     reporter = relationship("User")

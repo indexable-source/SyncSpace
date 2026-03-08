@@ -15,7 +15,9 @@ export default function BugReporter() {
     const [form, setForm] = useState({
         title: '',
         description: '',
-        severity: 'medium'
+        severity: 'medium',
+        severity: 'medium',
+        images: []
     });
 
     // Auto-capture URL when opened or path changes
@@ -24,6 +26,50 @@ export default function BugReporter() {
             setUrl(window.location.href);
         }
     }, [isOpen, pathname]);
+
+    const handleImageChange = (e) => {
+        if (form.images.length >= 3) {
+            toast.error('You can only attach up to 3 images');
+            e.target.value = '';
+            return;
+        }
+
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            toast.error('Only image files are allowed');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                const MAX_WIDTH = 1200;
+
+                if (width > MAX_WIDTH) {
+                    height = Math.round((height * MAX_WIDTH) / width);
+                    width = MAX_WIDTH;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Compress heavily to save SQLite bloat
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                setForm(prev => ({ ...prev, images: [...prev.images, dataUrl] }));
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+        e.target.value = ''; // Reset input to allow selecting same file again
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -34,10 +80,10 @@ export default function BugReporter() {
 
         setIsSubmitting(true);
         try {
-            await api.submitBugReport(form.title, form.description, form.severity, url);
+            await api.submitBugReport(form.title, form.description, form.severity, url, form.images.length > 0 ? form.images : null);
             toast.success('Bug report submitted successfully. Thank you!');
             setIsOpen(false);
-            setForm({ title: '', description: '', severity: 'medium' });
+            setForm({ title: '', description: '', severity: 'medium', images: [] });
         } catch (err) {
             toast.error(err.message || 'Failed to submit bug report');
         } finally {
@@ -176,6 +222,35 @@ export default function BugReporter() {
                     <option value="high">High Priority</option>
                     <option value="critical">Critical (Blocks usage)</option>
                 </select>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <label style={{
+                        display: 'flex', alignItems: 'center', gap: '0.5rem',
+                        fontSize: '0.75rem', color: 'var(--text-muted)',
+                        cursor: form.images.length >= 3 ? 'not-allowed' : 'pointer', backgroundColor: 'var(--bg-base)',
+                        padding: '0.4rem 0.6rem', border: '1px solid var(--border-color)',
+                        borderRadius: '4px', opacity: form.images.length >= 3 ? 0.5 : 1
+                    }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                        </svg>
+                        Attach Screen ({form.images.length}/3)
+                        <input type="file" accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} disabled={form.images.length >= 3} />
+                    </label>
+
+                    {form.images.map((img, idx) => (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: 'var(--bg-base)', padding: '0.2rem 0.4rem', borderRadius: '4px', border: '1px solid var(--color-low)' }}>
+                            <img src={img} alt="attachment" style={{ height: '24px', width: 'auto', borderRadius: '2px' }} />
+                            <button
+                                type="button"
+                                onClick={() => setForm(p => ({ ...p, images: p.images.filter((_, i) => i !== idx) }))}
+                                style={{ background: 'none', border: 'none', color: 'var(--color-critical)', cursor: 'pointer', padding: 0 }}
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+                    ))}
+                </div>
 
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                     <span>Current URL context:</span>
