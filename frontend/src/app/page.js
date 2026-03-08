@@ -87,6 +87,18 @@ export default function HomePage() {
   const totalWeekMinutes = 6 * (7 * 60 + 50);
   const freeHours = ((totalWeekMinutes - totalClassMinutes) / 60).toFixed(1);
 
+  // Today detection for column highlighting
+  const now = new Date();
+  const jsDay = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const todayIdx = jsDay === 0 ? -1 : jsDay - 1; // -1 if Sunday (not shown)
+  const todayDateStr = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  const formatMeetingDate = (dateStr) => {
+    if (!dateStr) return null;
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  };
+
   const totalHeight = SEGMENTS.reduce((sum, seg) => sum + segHeight(seg), 0);
 
   return (
@@ -96,7 +108,7 @@ export default function HomePage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
           <div>
             <p className="font-mono text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
-              Schedule
+              {todayDateStr}
             </p>
             <h2 className="font-serif" style={{ margin: 0 }}>Your Week at a Glance.</h2>
             <p className="font-mono text-muted" style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>
@@ -148,7 +160,9 @@ export default function HomePage() {
                 <div className="card-invert" style={{ padding: '1.2rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
                     <strong className="font-serif" style={{ fontSize: '1.1rem' }}>{m.title}</strong>
-                    <span className="font-mono text-muted" style={{ fontSize: '0.7rem' }}>{DAYS[m.day_of_week].slice(0, 3).toUpperCase()}</span>
+                    <span className="font-mono text-muted" style={{ fontSize: '0.7rem' }}>
+                      {formatMeetingDate(m.meeting_date) || DAYS[m.day_of_week].slice(0, 3).toUpperCase()}
+                    </span>
                   </div>
                   <div className="font-mono text-secondary" style={{ fontSize: '0.8rem', marginBottom: '0.75rem' }}>
                     {m.start_time} - {m.end_time}
@@ -205,18 +219,21 @@ export default function HomePage() {
                 fontFamily: 'var(--font-pixel)', fontSize: '0.8rem', textAlign: 'center',
                 color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>PERIOD</div>
-              {DAYS.map((day, idx) => (
-                <div key={day} style={{
-                  gridColumn: idx + 2, background: 'var(--bg-card)',
-                  padding: '0.6rem 0.5rem', fontWeight: 'bold', textAlign: 'center',
-                  fontSize: '0.85rem', textTransform: 'uppercase',
-                  borderBottom: '2px solid var(--border-color)',
-                  borderRight: idx < 5 ? 'var(--border-width) solid var(--border-light)' : 'none',
-                  color: 'var(--text-primary)',
-                }}>
-                  {day.slice(0, 3)}
-                </div>
-              ))}
+              {DAYS.map((day, idx) => {
+                const isToday = idx === todayIdx;
+                return (
+                  <div key={day} style={{
+                    gridColumn: idx + 2, background: 'var(--bg-card)',
+                    padding: '0.6rem 0.5rem', fontWeight: 'bold', textAlign: 'center',
+                    fontSize: '0.85rem', textTransform: 'uppercase',
+                    borderBottom: isToday ? '3px solid var(--accent-primary)' : '2px solid var(--border-color)',
+                    borderRight: idx < 5 ? 'var(--border-width) solid var(--border-light)' : 'none',
+                    color: isToday ? 'var(--accent-primary)' : 'var(--text-primary)',
+                  }}>
+                    {day.slice(0, 3)}
+                  </div>
+                );
+              })}
 
               {/* ─── Segment Rows (Periods + Breaks) ─── */}
               {SEGMENTS.map((seg) => {

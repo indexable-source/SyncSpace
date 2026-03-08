@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 from app.database import get_db
 from app.models import Group, GroupMember, Meeting, MeetingParticipant, Schedule, User
@@ -25,6 +25,16 @@ class CreateMeetingRequest(BaseModel):
     end_time: str
     participant_ids: List[int]
     include_break: bool = False
+    meeting_date: Optional[str] = None  # "YYYY-MM-DD", auto-computed if missing
+
+
+def _next_weekday(day_of_week: int) -> date:
+    """Return the next occurrence of the given weekday (0=Mon)."""
+    today = date.today()
+    days_ahead = day_of_week - today.weekday()
+    if days_ahead < 0:  # already passed this week
+        days_ahead += 7
+    return today + timedelta(days=days_ahead)
 
 def time_to_minutes(time_str: str) -> int:
     h, m = map(int, time_str.split(':'))
@@ -205,6 +215,12 @@ def create_meeting(
                     if max(m_start, gap_start) < min(m_end, gap_end):
                         raise HTTPException(status_code=400, detail="Meeting cannot be scheduled during break time")
 
+    # Compute meeting date
+    if req.meeting_date:
+        m_date = date.fromisoformat(req.meeting_date)
+    else:
+        m_date = _next_weekday(req.day_of_week)
+
     # Create meeting
     meeting = Meeting(
         group_id=group.id,
@@ -214,6 +230,7 @@ def create_meeting(
         day_of_week=req.day_of_week,
         start_time=req.start_time,
         end_time=req.end_time,
+        meeting_date=m_date,
         include_break=req.include_break
     )
     db.add(meeting)
@@ -227,7 +244,7 @@ def create_meeting(
     db.commit()
     db.refresh(meeting)
 
-    return {"success": True, "meeting": {"id": meeting.id, "title": meeting.title}}
+    return {"success": True, "meeting": {"id": meeting.id, "title": meeting.title, "meeting_date": str(m_date)}}
 
 
 @router.get("/groups/{identifier}/meetings")
@@ -266,6 +283,7 @@ def list_group_meetings(
             "day_name": DAYS[m.day_of_week] if m.day_of_week < len(DAYS) else "Unknown",
             "start_time": m.start_time,
             "end_time": m.end_time,
+            "meeting_date": str(m.meeting_date) if m.meeting_date else None,
             "created_by": creator.username if creator else "Unknown",
             "participants": parts_info
         })
@@ -329,6 +347,7 @@ def get_dashboard_meetings(
             "day_name": DAYS[m.day_of_week] if m.day_of_week < len(DAYS) else "Unknown",
             "start_time": m.start_time,
             "end_time": m.end_time,
+            "meeting_date": str(m.meeting_date) if m.meeting_date else None,
             "participants": parts_info
         })
 

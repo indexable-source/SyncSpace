@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Time, Text, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, Date, ForeignKey, Time, Text, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from .database import Base
@@ -95,6 +95,7 @@ class Meeting(Base):
     day_of_week = Column(Integer, nullable=False)     # 0=Monday ... 6=Sunday
     start_time = Column(String(5), nullable=False)     # "14:00"
     end_time = Column(String(5), nullable=False)       # "15:30"
+    meeting_date = Column(Date, nullable=True)            # actual calendar date
     include_break = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 

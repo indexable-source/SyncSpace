@@ -99,11 +99,11 @@ export default function MeetingsPage() {
                                                     background: 'var(--accent-primary)',
                                                     flexShrink: 0,
                                                 }} />
-                                                <div style={{ flex: 1, padding: '1rem 1.25rem' }}>
+                                                    <div style={{ flex: 1, padding: '1rem 1.25rem' }}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.4rem' }}>
                                                         <strong className="font-serif" style={{ fontSize: '1.1rem' }}>{m.title}</strong>
                                                         <span className="font-mono text-muted" style={{ fontSize: '0.7rem', flexShrink: 0, marginLeft: '1rem' }}>
-                                                            {m.start_time} - {m.end_time}
+                                                            {m.meeting_date ? new Date(m.meeting_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : ''} {m.start_time} - {m.end_time}
                                                         </span>
                                                     </div>
                                                     <div className="font-mono text-muted" style={{ fontSize: '0.75rem' }}>
