@@ -29,8 +29,14 @@ class Settings:
     ERP_TIMETABLE_URL: str = f"{ERP_BASE_URL}/index.php?r=timetables%2Funiversitymasteracademictimetableview%2Findexstudentindisearch"
     ERP_SESSION_TIMEOUT: int = 3600  # 1 hour
     
-    # CORS
-    CORS_ORIGINS: list = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    # CORS — set CORS_ORIGINS env var as comma-separated URLs for production
+    CORS_ORIGINS: list = [
+        origin.strip()
+        for origin in os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:3000,http://127.0.0.1:3000"
+        ).split(",")
+    ]
     DEBUG: bool = os.getenv("DEBUG", "true").lower() == "true"
 
 settings = Settings()
